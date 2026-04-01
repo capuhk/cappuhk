@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2 } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -6,10 +6,12 @@ import { supabase } from '../../lib/supabase'
 import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../../utils/masterCache'
 import { getBadgeClass } from '../../utils/statusColors'
 import useRefreshStore from '../../store/useRefreshStore'
+import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 
 export default function InspectionListPage() {
   const navigate = useNavigate()
-  const refreshKey = useRefreshStore((s) => s.refreshKey)
+  const { refreshKey, triggerRefresh } = useRefreshStore()
+  const { pullDistance, refreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
 
   const [statuses, setStatuses] = useState(
     () => getCachedDataSync(CACHE_KEYS.inspectionStatuses) || []
@@ -146,6 +148,19 @@ export default function InspectionListPage() {
   // ── 렌더 ─────────────────────────────────────
   return (
     <div>
+      {/* Pull-to-refresh 인디케이터 */}
+      {(pullDistance > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center transition-all"
+          style={{ height: refreshing ? 40 : pullDistance * 0.57 }}
+        >
+          <Loader2
+            size={20}
+            className={`text-white/40 ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: `rotate(${pullDistance * 3}deg)` }}
+          />
+        </div>
+      )}
       {/* 검색바 + 날짜범위 버튼 */}
       <div className="px-4 pt-4 pb-2 flex gap-2">
         <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-white/10 rounded-xl border border-white/20">

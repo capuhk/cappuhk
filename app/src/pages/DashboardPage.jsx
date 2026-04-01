@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, ChevronRight, CheckCircle } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import useAuthStore from '../store/useAuthStore'
 import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../utils/masterCache'
 import useRefreshStore from '../store/useRefreshStore'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 
 // 필터 항목 순서 — 완료 제거 (대시보드는 미처리 현황만 표시)
 const FILTERS = ['환기중', '진행중', '시설오더']
@@ -31,7 +32,8 @@ export default function DashboardPage() {
   const [activeFilters, setActiveFilters] = useState(new Set(FILTERS))
 
   // 헤더 🔄 버튼 트리거 — 변경 시 데이터 재조회
-  const refreshKey = useRefreshStore((s) => s.refreshKey)
+  const { refreshKey, triggerRefresh } = useRefreshStore()
+  const { pullDistance, refreshing: pullRefreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
 
   const [policies, setPolicies] = useState(
     () => getCachedDataSync(CACHE_KEYS.appPolicies) || []
@@ -278,6 +280,14 @@ export default function DashboardPage() {
 
   return (
     <div className="px-4 pt-4 pb-20">
+      {/* Pull-to-refresh 인디케이터 */}
+      {(pullDistance > 0 || pullRefreshing) && (
+        <div className="flex items-center justify-center transition-all -mx-4"
+          style={{ height: pullRefreshing ? 40 : pullDistance * 0.57 }}>
+          <Loader2 size={20} className={`text-white/40 ${pullRefreshing ? 'animate-spin' : ''}`}
+            style={{ transform: `rotate(${pullDistance * 3}deg)` }} />
+        </div>
+      )}
 
       {/* 필터 버튼 */}
       <div className="flex flex-wrap gap-2 mb-4">

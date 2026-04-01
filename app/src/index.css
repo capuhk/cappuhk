@@ -37,8 +37,8 @@
     height: 100%;
     margin: 0;
     padding: 0;
-    /* 모바일 좌우 스크롤 방지 */
-    overflow-x: hidden;
+    /* 모바일 좌우 스크롤 방지 — clip은 fixed 요소를 클리핑하지 않음 */
+    overflow-x: clip;
   }
   body {
     background-color: hsl(var(--background));
