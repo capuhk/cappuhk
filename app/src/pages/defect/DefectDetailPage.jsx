@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Loader2, Trash2, ImageOff } from 'lucide-react'
+import { Loader2, Trash2, ImageOff, X, ZoomIn } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
@@ -18,51 +18,55 @@ export default function DefectDetailPage() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  const [record, setRecord]     = useState(null)
-  const [imgUrls, setImgUrls]   = useState([])   // signed URL 배열
-  const [loading, setLoading]   = useState(true)
-  const [deleting, setDeleting] = useState(false)
+  const [record, setRecord]         = useState(null)
+  const [imgUrls, setImgUrls]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const [deleting, setDeleting]     = useState(false)
+  const [viewerIndex, setViewerIndex] = useState(null)
 
   // ── 데이터 로드 ───────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase
-        .from('defects')
-        .select(`
-          *,
-          defect_images(id, thumb_path, sort_order),
-          author:users!author_id(name),
-          updater:users!updated_by(name)
-        `)
-        .eq('id', id)
-        .single()
+      try {
+        const { data, error } = await supabase
+          .from('defects')
+          .select(`
+            *,
+            defect_images(id, thumb_path, sort_order),
+            author:users!author_id(name),
+            updater:users!updated_by(name)
+          `)
+          .eq('id', id)
+          .single()
 
-      if (error || !data) {
-        navigate('/defect', { replace: true })
-        return
-      }
-
-      setRecord(data)
-
-      // 이미지 signed URL 로드 (sort_order 순)
-      const sorted = [...(data.defect_images || [])].sort((a, b) => a.sort_order - b.sort_order)
-      const paths  = sorted.map((img) => img.thumb_path).filter(Boolean)
-
-      if (paths.length > 0) {
-        try {
-          const signed = await getSignedUrls(paths, 'defects')
-          const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
-          setImgUrls(sorted.map((img) => ({
-            thumb_path: img.thumb_path,
-            url:        img.thumb_path ? (urlMap[img.thumb_path] ?? null) : null,
-          })))
-        } catch {
-          // signed URL 실패 → 만료 처리
-          setImgUrls(sorted.map((img) => ({ thumb_path: img.thumb_path, url: null })))
+        if (error || !data) {
+          navigate('/defect', { replace: true })
+          return
         }
-      }
 
-      setLoading(false)
+        setRecord(data)
+
+        const sorted = [...(data.defect_images || [])].sort((a, b) => a.sort_order - b.sort_order)
+        const paths  = sorted.map((img) => img.thumb_path).filter(Boolean)
+
+        if (paths.length > 0) {
+          try {
+            const signed = await getSignedUrls(paths, 'defects')
+            const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
+            setImgUrls(sorted.map((img) => ({
+              thumb_path: img.thumb_path,
+              url:        img.thumb_path ? (urlMap[img.thumb_path] ?? null) : null,
+            })))
+          } catch {
+            setImgUrls(sorted.map((img) => ({ thumb_path: img.thumb_path, url: null })))
+          }
+        }
+      } catch (err) {
+        console.error('객실하자 상세 로드 오류:', err)
+        navigate('/defect', { replace: true })
+      } finally {
+        setLoading(false)
+      }
     }
 
     fetchData()
@@ -119,7 +123,7 @@ export default function DefectDetailPage() {
   // ── 렌더 ─────────────────────────────────────
   return (
     <div>
-      {/* 이미지 슬라이드 — 전체 너비 가로 스크롤 */}
+      {/* 이미지 슬라이드 — 전체 너비 가로 스크롤, 클릭 시 전체화면 */}
       {imgUrls.length > 0 && (
         <div
           className="flex gap-2 overflow-x-auto px-4 pt-4"
@@ -129,17 +133,26 @@ export default function DefectDetailPage() {
             <div
               key={idx}
               className="shrink-0 w-[calc(100vw-2rem)] max-w-[640px] aspect-[4/3]
-                rounded-2xl overflow-hidden bg-white/10"
+                rounded-2xl overflow-hidden bg-white/10 relative group"
               style={{ scrollSnapAlign: 'start' }}
             >
               {item.url ? (
-                <img
-                  src={item.url}
-                  alt={`이미지 ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
+                <>
+                  <img
+                    src={item.url}
+                    alt={`이미지 ${idx + 1}`}
+                    className="w-full h-full object-cover cursor-pointer"
+                    onClick={() => setViewerIndex(idx)}
+                  />
+                  <button
+                    onClick={() => setViewerIndex(idx)}
+                    className="absolute inset-0 flex items-center justify-center
+                      bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <ZoomIn size={28} className="text-white" />
+                  </button>
+                </>
               ) : (
-                // 만료 또는 로드 실패 이미지 (하자는 영구보관이라 기본적으로 발생 안 함)
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                   <ImageOff size={28} className="text-white/20" />
                   <span className="text-sm text-white/30">이미지를 불러올 수 없습니다</span>
@@ -147,6 +160,48 @@ export default function DefectDetailPage() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 전체화면 뷰어 */}
+      {viewerIndex !== null && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center"
+          onClick={() => setViewerIndex(null)}
+        >
+          <button
+            onClick={() => setViewerIndex(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10
+              flex items-center justify-center hover:bg-white/20 transition-colors z-10"
+          >
+            <X size={20} className="text-white" />
+          </button>
+          {imgUrls.length > 1 && (
+            <span className="absolute top-4 left-1/2 -translate-x-1/2
+              text-sm text-white/60 bg-black/40 px-3 py-1 rounded-full z-10">
+              {viewerIndex + 1} / {imgUrls.length}
+            </span>
+          )}
+          <img
+            src={imgUrls[viewerIndex]?.url}
+            alt=""
+            className="max-w-full max-h-full object-contain px-2"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {imgUrls.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewerIndex((v) => (v - 1 + imgUrls.length) % imgUrls.length) }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full
+                  bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-white text-lg"
+              >‹</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setViewerIndex((v) => (v + 1) % imgUrls.length) }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full
+                  bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors text-white text-lg"
+              >›</button>
+            </>
+          )}
         </div>
       )}
 

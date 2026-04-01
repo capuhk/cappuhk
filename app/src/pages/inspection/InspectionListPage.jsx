@@ -47,8 +47,7 @@ export default function InspectionListPage() {
 
         if (!error && data) {
           setRecords(data)
-          const dates = [...new Set(data.map((r) => r.work_date))].sort((a, b) => b.localeCompare(a))
-          if (dates.length > 0) setOpenDates(new Set([dates[0]]))
+          // 기본값 닫힘 — 사용자가 직접 열어서 확인
         }
       } catch (err) {
         // AbortError는 정상 취소 — 그 외는 로그

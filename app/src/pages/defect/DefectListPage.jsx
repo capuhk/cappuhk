@@ -43,8 +43,7 @@ export default function DefectListPage() {
 
         if (!error && data) {
           setRecords(data)
-          const rooms = [...new Set(data.map((r) => r.room_no))].sort((a, b) => a.localeCompare(b, 'ko'))
-          if (rooms.length > 0) setOpenRooms(new Set([rooms[0]]))
+          // 기본값 닫힘 — 사용자가 직접 열어서 확인
         }
       } catch (err) {
         if (err?.name !== 'AbortError') console.error('객실하자 목록 로드 오류:', err)
