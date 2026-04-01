@@ -34,6 +34,8 @@ export default function InspectionListPage() {
   // ── 데이터 로드 — 날짜 범위 서버 필터 적용 ───────
   useEffect(() => {
     const controller = new AbortController()
+    // 10초 후 자동 중단 — 모바일 네트워크 무한 스피너 방지
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
 
     const fetchData = async () => {
       setLoading(true)
@@ -49,12 +51,11 @@ export default function InspectionListPage() {
 
         if (!error && data) {
           setRecords(data)
-          // 기본값 닫힘 — 사용자가 직접 열어서 확인
         }
       } catch (err) {
-        // AbortError는 정상 취소 — 그 외는 로그
         if (err?.name !== 'AbortError') console.error('인스펙션 목록 로드 오류:', err)
       } finally {
+        clearTimeout(timeoutId)
         setLoading(false)
       }
     }
@@ -63,8 +64,7 @@ export default function InspectionListPage() {
     getMasterData(CACHE_KEYS.inspectionStatuses).then(setStatuses).catch(console.error)
     getMasterData(CACHE_KEYS.appPolicies).then(setPolicies).catch(console.error)
 
-    // StrictMode 이중 실행 대비 — 언마운트 시 진행 중인 요청 취소
-    return () => controller.abort()
+    return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey, dateFrom, dateTo])
 
   // ── 검색 (객실번호 + 작성자) ──────────────────

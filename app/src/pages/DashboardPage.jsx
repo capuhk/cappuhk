@@ -68,21 +68,29 @@ export default function DashboardPage() {
 
   // ── 데이터 로드 ───────────────────────────────
   useEffect(() => {
+    const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 10000)
+
     const fetchData = async () => {
       setLoading(true)
       setRows([])
       try {
-        const { data, error } = await supabase.rpc('get_unresolved_stats')
+        const { data, error } = await supabase
+          .rpc('get_unresolved_stats')
+          .abortSignal(controller.signal)
         if (error) throw error
         setRows(data || [])
       } catch (err) {
-        console.error('대시보드 로드 오류:', err)
+        if (err?.name !== 'AbortError') console.error('대시보드 로드 오류:', err)
       } finally {
+        clearTimeout(timeoutId)
         setLoading(false)
       }
     }
     fetchData()
     getMasterData(CACHE_KEYS.appPolicies).then(setPolicies)
+
+    return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey]) // refreshKey 변경 시 재조회
 
   // ── 현재 활성 필터 목록 (순서 유지) ──────────

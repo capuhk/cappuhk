@@ -32,6 +32,7 @@ export default function DefectListPage() {
   // ── 데이터 로드 ───────────────────────────────
   useEffect(() => {
     const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 10000)
 
     const fetchData = async () => {
       setLoading(true)
@@ -43,20 +44,18 @@ export default function DefectListPage() {
           .order('created_at', { ascending: false })
           .abortSignal(controller.signal)
 
-        if (!error && data) {
-          setRecords(data)
-          // 기본값 닫힘 — 사용자가 직접 열어서 확인
-        }
+        if (!error && data) setRecords(data)
       } catch (err) {
         if (err?.name !== 'AbortError') console.error('객실하자 목록 로드 오류:', err)
       } finally {
+        clearTimeout(timeoutId)
         setLoading(false)
       }
     }
 
     fetchData()
 
-    return () => controller.abort()
+    return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey])
 
   // ── 상태 필터 + 검색 (객실번호 + 작성자) ──────

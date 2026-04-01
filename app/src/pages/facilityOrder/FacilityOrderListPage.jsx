@@ -44,6 +44,7 @@ export default function FacilityOrderListPage() {
   // ── 데이터 로드 — 날짜 범위 서버 필터 적용 ───────
   useEffect(() => {
     const controller = new AbortController()
+    const timeoutId  = setTimeout(() => controller.abort(), 10000)
 
     const fetchData = async () => {
       setLoading(true)
@@ -65,13 +66,14 @@ export default function FacilityOrderListPage() {
       } catch (err) {
         if (err?.name !== 'AbortError') console.error('시설오더 목록 로드 오류:', err)
       } finally {
+        clearTimeout(timeoutId)
         setLoading(false)
       }
     }
 
     fetchData()
 
-    return () => controller.abort()
+    return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey, dateFrom, dateTo])
 
   // ── 날짜 목록 (고유값, 최신순) ───────────────
