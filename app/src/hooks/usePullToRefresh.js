@@ -48,7 +48,8 @@ export function usePullToRefresh(onRefresh, threshold = 70) {
     }
 
     document.addEventListener('touchstart', onTouchStart, { passive: true })
-    document.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    // passive: true로 변경 — iOS Safari에서 passive:false가 스크롤 차단 유발
+    document.addEventListener('touchmove',  onTouchMove,  { passive: true })
     document.addEventListener('touchend',   onTouchEnd,   { passive: true })
 
     return () => {
