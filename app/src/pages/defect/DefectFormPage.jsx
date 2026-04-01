@@ -278,7 +278,7 @@ export default function DefectFormPage() {
   // ── 렌더 ─────────────────────────────────────
   return (
     <>
-      <div className="px-4 pt-6 pb-36 space-y-6">
+      <div className="px-4 pt-6 pb-48 space-y-6">
 
         {/* 객실번호 */}
         <section>

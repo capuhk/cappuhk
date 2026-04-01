@@ -170,7 +170,7 @@ export default function NoticeFormPage() {
   // ── 렌더 ─────────────────────────────────────────
   return (
     <div>
-      <div className="px-4 pt-6 pb-36 space-y-6">
+      <div className="px-4 pt-6 pb-48 space-y-6">
 
         {/* 구분 — 일반 / 공지 토글 */}
         <section>

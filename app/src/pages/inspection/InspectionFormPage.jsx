@@ -254,7 +254,7 @@ export default function InspectionFormPage() {
   // ── 렌더 ─────────────────────────────────────
   return (
     <div>
-      <div className="px-4 pt-6 pb-36 space-y-6">
+      <div className="px-4 pt-6 pb-48 space-y-6">
         {/* 객실번호 */}
         <section>
           <label className="block text-sm text-white/50 mb-2">객실번호 *</label>

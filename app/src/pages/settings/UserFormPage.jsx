@@ -239,7 +239,7 @@ export default function UserFormPage() {
   // ── 렌더 ─────────────────────────────────────
   return (
     <div>
-      <div className="px-4 pt-6 pb-36 space-y-6 max-w-xl mx-auto">
+      <div className="px-4 pt-6 pb-48 space-y-6 max-w-xl mx-auto">
 
         {/* 아바타 */}
         <section className="flex flex-col items-center gap-3">

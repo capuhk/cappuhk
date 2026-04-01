@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
@@ -114,6 +114,30 @@ export default function FacilityOrderListPage() {
     if (val === 'all') return records.length
     if (val === 'incomplete') return records.filter((r) => r.status !== '완료' && r.status !== '이관').length
     return records.filter((r) => r.status === val).length
+  }
+
+  // ── 빠른 상태 변경 ───────────────────────────
+  const [processingId, setProcessingId] = useState(null)
+
+  const handleQuickStatus = async (e, record, newStatus) => {
+    e.stopPropagation()
+    if (processingId) return
+    setProcessingId(`${record.id}-${newStatus}`)
+    try {
+      const { error } = await supabase
+        .from('facility_orders')
+        .update({ status: newStatus })
+        .eq('id', record.id)
+      if (!error) {
+        setRecords((prev) => prev.map((r) =>
+          r.id === record.id ? { ...r, status: newStatus } : r
+        ))
+      }
+    } catch (err) {
+      console.error('상태 변경 오류:', err)
+    } finally {
+      setProcessingId(null)
+    }
   }
 
   // ── 아코디언 토글 ─────────────────────────────
@@ -250,34 +274,76 @@ export default function FacilityOrderListPage() {
                 {/* 카드 목록 */}
                 {isOpen && (
                   <div className="px-3 pb-3 space-y-2 border-t border-white/8">
-                    {grouped[date].map((record) => (
-                      <button
-                        key={record.id}
-                        onClick={() => navigate(`/facility-order/${record.id}`)}
-                        className={`w-full text-left px-4 py-3 rounded-xl
-                          border hover:bg-white/10 active:scale-[0.99]
-                          transition-all mt-2 ${
-                            record.is_urgent
-                              ? 'bg-red-500/5 border-red-500/20'
-                              : 'bg-white/5 border-white/8'
-                          }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {record.is_urgent && (
-                            <span className="text-xs text-red-400 shrink-0">🚨</span>
+                    {grouped[date].map((record) => {
+                      const isProcessing = processingId?.startsWith(record.id)
+                      const showButtons  = record.status !== '완료' && record.status !== '이관'
+                      return (
+                        <div
+                          key={record.id}
+                          className={`w-full flex items-center gap-2 px-3 py-3 rounded-xl
+                            border mt-2 ${
+                              record.is_urgent
+                                ? 'bg-red-500/5 border-red-500/20'
+                                : 'bg-white/5 border-white/8'
+                            }`}
+                        >
+                          {/* 카드 본문 — 클릭 시 상세 이동 */}
+                          <button
+                            onClick={() => navigate(`/facility-order/${record.id}`)}
+                            className="flex-1 text-left min-w-0 active:scale-[0.99]"
+                          >
+                            <div className="flex items-center gap-2">
+                              {record.is_urgent && (
+                                <span className="text-xs text-red-400 shrink-0">🚨</span>
+                              )}
+                              <span className="text-base font-bold text-white">{record.room_no}</span>
+                              <span className="text-sm text-white/60 truncate">{record.facility_type_name}</span>
+                              <span className={`ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status] || 'bg-zinc-500/30 text-zinc-300'}`}>
+                                {record.status}
+                              </span>
+                            </div>
+                            {record.note && (
+                              <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
+                            )}
+                            <p className="mt-1 text-xs text-white/30">{record.users?.name}</p>
+                          </button>
+
+                          {/* 빠른 상태 변경 버튼 */}
+                          {showButtons && (
+                            <div className="shrink-0 flex flex-col gap-1">
+                              {record.status === '접수대기' && (
+                                <button
+                                  onClick={(e) => handleQuickStatus(e, record, '처리중')}
+                                  disabled={isProcessing}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                                    bg-blue-500/20 text-blue-400 hover:bg-blue-500/35
+                                    transition-all active:scale-95 disabled:opacity-40"
+                                >
+                                  {processingId === `${record.id}-처리중`
+                                    ? <Loader2 size={11} className="animate-spin" />
+                                    : <CheckCircle size={11} />
+                                  }
+                                  접수
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => handleQuickStatus(e, record, '완료')}
+                                disabled={isProcessing}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                                  bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
+                                  transition-all active:scale-95 disabled:opacity-40"
+                              >
+                                {processingId === `${record.id}-완료`
+                                  ? <Loader2 size={11} className="animate-spin" />
+                                  : <CheckCircle size={11} />
+                                }
+                                완료
+                              </button>
+                            </div>
                           )}
-                          <span className="text-base font-bold text-white">{record.room_no}</span>
-                          <span className="text-sm text-white/60">{record.facility_type_name}</span>
-                          <span className={`ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status] || 'bg-zinc-500/30 text-zinc-300'}`}>
-                            {record.status}
-                          </span>
                         </div>
-                        {record.note && (
-                          <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
-                        )}
-                        <p className="mt-1 text-xs text-white/30">{record.users?.name}</p>
-                      </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </section>

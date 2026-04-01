@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CheckCircle, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
 
@@ -84,6 +84,30 @@ export default function DefectListPage() {
 
   // 객실번호 목록 — 가나다 순
   const rooms = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'ko'))
+
+  // ── 빠른 상태 변경 ───────────────────────────
+  const [processingId, setProcessingId] = useState(null)
+
+  const handleQuickStatus = async (e, record, newStatus) => {
+    e.stopPropagation()
+    if (processingId) return
+    setProcessingId(`${record.id}-${newStatus}`)
+    try {
+      const { error } = await supabase
+        .from('defects')
+        .update({ status: newStatus })
+        .eq('id', record.id)
+      if (!error) {
+        setRecords((prev) => prev.map((r) =>
+          r.id === record.id ? { ...r, status: newStatus } : r
+        ))
+      }
+    } catch (err) {
+      console.error('상태 변경 오류:', err)
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   // ── 아코디언 토글 ─────────────────────────────
   const toggleRoom = (room) => {
@@ -170,44 +194,84 @@ export default function DefectListPage() {
                 {/* 카드 목록 */}
                 {isOpen && (
                   <div className="px-3 pb-3 space-y-2 border-t border-white/8">
-                    {grouped[room].map((record) => (
-                      <button
-                        key={record.id}
-                        onClick={() => navigate(`/defect/${record.id}`)}
-                        className="w-full text-left px-4 py-3 rounded-xl bg-white/5
-                          border border-white/8 hover:bg-white/10 active:scale-[0.99]
-                          transition-all mt-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          {/* 구분/위치 */}
-                          <span className="text-sm font-semibold text-white">
-                            {record.division} · {(() => {
-                              const locs = record.location.split(',').filter(Boolean)
-                              return locs.length > 1
-                                ? `${locs[0].trim()} 외 ${locs.length - 1}개`
-                                : (locs[0] || '').trim()
-                            })()}
-                          </span>
-                          {/* 상태 뱃지 */}
-                          <span className={`ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status]}`}>
-                            {record.status}
-                          </span>
-                        </div>
-                        {/* 하자분류 + 작성자 */}
-                        <div className="flex items-center gap-2 mt-1">
-                          {record.category && (
-                            <span className="text-xs text-white/40">{record.category}</span>
+                    {grouped[room].map((record) => {
+                      const isProcessing = processingId?.startsWith(record.id)
+                      return (
+                        <div
+                          key={record.id}
+                          className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-white/5
+                            border border-white/8 mt-2"
+                        >
+                          {/* 카드 본문 — 클릭 시 상세 이동 */}
+                          <button
+                            onClick={() => navigate(`/defect/${record.id}`)}
+                            className="flex-1 text-left min-w-0 active:scale-[0.99]"
+                          >
+                            <div className="flex items-center gap-2">
+                              {/* 구분/위치 */}
+                              <span className="text-sm font-semibold text-white truncate">
+                                {record.division} · {(() => {
+                                  const locs = record.location.split(',').filter(Boolean)
+                                  return locs.length > 1
+                                    ? `${locs[0].trim()} 외 ${locs.length - 1}개`
+                                    : (locs[0] || '').trim()
+                                })()}
+                              </span>
+                              {/* 상태 뱃지 */}
+                              <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status]}`}>
+                                {record.status}
+                              </span>
+                            </div>
+                            {/* 하자분류 + 작성자 */}
+                            <div className="flex items-center gap-2 mt-1">
+                              {record.category && (
+                                <span className="text-xs text-white/40">{record.category}</span>
+                              )}
+                              <span className="text-xs text-white/30 ml-auto">
+                                {record.users?.name}
+                              </span>
+                            </div>
+                            {record.memo && (
+                              <p className="mt-1 text-sm text-white/40 truncate">{record.memo}</p>
+                            )}
+                          </button>
+
+                          {/* 빠른 상태 변경 버튼 */}
+                          {record.status !== '완료' && (
+                            <div className="shrink-0 flex flex-col gap-1">
+                              {record.status === '미완료' && (
+                                <button
+                                  onClick={(e) => handleQuickStatus(e, record, '처리중')}
+                                  disabled={isProcessing}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                                    bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/35
+                                    transition-all active:scale-95 disabled:opacity-40"
+                                >
+                                  {processingId === `${record.id}-처리중`
+                                    ? <Loader2 size={11} className="animate-spin" />
+                                    : <CheckCircle size={11} />
+                                  }
+                                  처리중
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => handleQuickStatus(e, record, '완료')}
+                                disabled={isProcessing}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                                  bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
+                                  transition-all active:scale-95 disabled:opacity-40"
+                              >
+                                {processingId === `${record.id}-완료`
+                                  ? <Loader2 size={11} className="animate-spin" />
+                                  : <CheckCircle size={11} />
+                                }
+                                완료
+                              </button>
+                            </div>
                           )}
-                          <span className="text-xs text-white/30 ml-auto">
-                            {record.users?.name}
-                          </span>
                         </div>
-                        {/* 메모 미리보기 */}
-                        {record.memo && (
-                          <p className="mt-1 text-sm text-white/40 truncate">{record.memo}</p>
-                        )}
-                      </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </section>

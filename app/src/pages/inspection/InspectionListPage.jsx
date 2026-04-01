@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../../utils/masterCache'
@@ -110,6 +110,30 @@ export default function InspectionListPage() {
   }
 
   const groupDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+
+  // ── 빠른 완료 처리 ───────────────────────────
+  const [processingId, setProcessingId] = useState(null)
+
+  const handleQuickComplete = async (e, record) => {
+    e.stopPropagation()
+    if (processingId) return
+    setProcessingId(record.id)
+    try {
+      const { error } = await supabase
+        .from('inspections')
+        .update({ status: '완료' })
+        .eq('id', record.id)
+      if (!error) {
+        setRecords((prev) => prev.map((r) =>
+          r.id === record.id ? { ...r, status: '완료' } : r
+        ))
+      }
+    } catch (err) {
+      console.error('상태 변경 오류:', err)
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   // ── 아코디언 토글 ─────────────────────────────
   const toggleDate = (date) => {
@@ -224,28 +248,54 @@ export default function InspectionListPage() {
                 {/* 카드 목록 */}
                 {isOpen && (
                   <div className="px-3 pb-3 space-y-2 border-t border-white/8">
-                    {sortRecords(grouped[date]).map((record) => (
-                      <button
-                        key={record.id}
-                        onClick={() => navigate(`/inspection/${record.id}`)}
-                        className="w-full text-left px-4 py-3 rounded-xl bg-white/5
-                          border border-white/8 hover:bg-white/10 active:scale-[0.99]
-                          transition-all mt-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-white">{record.room_no}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getBadgeClass(statuses, record.status)}`}>
-                            {record.status}
-                          </span>
-                          <span className="ml-auto text-xs text-white/40">
-                            {record.users?.name}
-                          </span>
+                    {sortRecords(grouped[date]).map((record) => {
+                      // 환기중·진행중일 때만 완료 버튼 표시
+                      const showComplete = ['환기중', '진행중'].includes(record.status)
+                      const isProcessing = processingId === record.id
+                      return (
+                        <div
+                          key={record.id}
+                          className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-white/5
+                            border border-white/8 mt-2"
+                        >
+                          {/* 카드 본문 — 클릭 시 상세 이동 */}
+                          <button
+                            onClick={() => navigate(`/inspection/${record.id}`)}
+                            className="flex-1 text-left min-w-0 active:scale-[0.99]"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-bold text-white">{record.room_no}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getBadgeClass(statuses, record.status)}`}>
+                                {record.status}
+                              </span>
+                              <span className="ml-auto text-xs text-white/40">
+                                {record.users?.name}
+                              </span>
+                            </div>
+                            {record.note && (
+                              <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
+                            )}
+                          </button>
+
+                          {/* 빠른 완료 버튼 */}
+                          {showComplete && (
+                            <button
+                              onClick={(e) => handleQuickComplete(e, record)}
+                              disabled={isProcessing}
+                              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                                bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
+                                transition-all active:scale-95 disabled:opacity-40"
+                            >
+                              {isProcessing
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <CheckCircle size={12} />
+                              }
+                              완료
+                            </button>
+                          )}
                         </div>
-                        {record.note && (
-                          <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
-                        )}
-                      </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </section>
