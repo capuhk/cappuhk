@@ -52,7 +52,8 @@ export default function ImageUploader({ type, value = [], onChange }) {
       .catch(() => {
         setItems(value.map((p) => ({ thumb_path: p, url: null, uploading: false })))
       })
-  }, [JSON.stringify(value), type])
+  // value 배열의 내용 변화 감지 — join으로 참조 변경과 무관하게 실제 경로 변경만 반응
+  }, [value.join(','), type])
 
   // ── 파일 선택 핸들러 ──────────────────────────
   const handleFileChange = async (e) => {

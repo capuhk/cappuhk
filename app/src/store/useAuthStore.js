@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+import { clearAllCache } from '../utils/masterCache'
+import useNotificationStore from './useNotificationStore'
 
 // localStorage 키: 재진입 시 아이디 자동완성
 const SAVED_ID_KEY = 'hk_saved_id'
@@ -97,11 +99,9 @@ const useAuthStore = create((set, get) => ({
     await supabase.auth.signOut()
 
     // 마스터 캐시 전체 삭제 (계정 오염 방지)
-    const { clearAllCache } = await import('../utils/masterCache')
     clearAllCache()
 
     // 알림 스토어 초기화 (다음 계정 로그인 시 오염 방지)
-    const { default: useNotificationStore } = await import('./useNotificationStore')
     useNotificationStore.getState().reset()
 
     localStorage.removeItem(SAVED_ID_KEY)

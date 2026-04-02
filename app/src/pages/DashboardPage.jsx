@@ -193,7 +193,8 @@ export default function DashboardPage() {
   const Card = ({ row, showBadge }) => {
     // 완료 버튼 표시 여부 (환기중·진행중·시설오더만)
     const showComplete = ['환기중', '진행중', '시설오더'].includes(row.type)
-    const isProcessing = processingId?.startsWith(row.id)
+    // processingId 형식: "{rowId}-{status}" — 정확히 이 행이 처리 중인지 확인
+    const isProcessing = processingId !== null && processingId.startsWith(`${row.id}-`)
 
     return (
       <div className={`w-full flex items-center gap-2.5 px-3.5 py-3

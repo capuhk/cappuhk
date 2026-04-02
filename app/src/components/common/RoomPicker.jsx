@@ -55,7 +55,7 @@ export default function RoomPicker({ value, onChange }) {
   // 선택된 층의 객실 목록
   const roomsForFloor = rooms
     .filter((r) => r.floor === selectedFloor)
-    .sort((a, b) => a.sort_order - b.sort_order)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 
   // 현재 선택값의 층 정보
   const selectedRoom = rooms.find((r) => r.room_no === value)

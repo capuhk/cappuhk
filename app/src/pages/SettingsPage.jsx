@@ -10,6 +10,7 @@ import useAuthStore from '../store/useAuthStore'
 import { getPushStatus, subscribePush, unsubscribePush } from '../utils/pushSubscription'
 import { clearAllCache, invalidateCache, CACHE_KEYS } from '../utils/masterCache'
 import { uploadAvatar } from '../utils/imageUpload'
+import useToastStore from '../store/useToastStore'
 import MasterDataEditor from '../components/common/MasterDataEditor'
 import StatusSortableEditor from '../components/common/StatusSortableEditor'
 import AppPolicyEditor from '../components/common/AppPolicyEditor'
@@ -39,6 +40,7 @@ const TABS = [
 export default function SettingsPage() {
   const navigate = useNavigate()
   const { user, isManager, refreshProfile } = useAuthStore()
+  const toast = useToastStore((s) => s.show)
 
   // ── 탭 상태 ──────────────────────────────────
   const [activeTab, setActiveTab] = useState('me')
@@ -133,7 +135,7 @@ export default function SettingsPage() {
       setAvatarUrl(publicUrl)
       await refreshProfile()
     } catch (err) {
-      alert('사진 업로드 실패: ' + err.message)
+      toast('사진 업로드 실패: ' + err.message, 'error')
     } finally {
       setUploadingAvatar(false)
       // input 초기화 (같은 파일 재선택 가능하도록)
@@ -173,7 +175,7 @@ export default function SettingsPage() {
     try {
       if (pushStatus === 'subscribed') { await unsubscribePush(user.id); setPushStatus('unsubscribed') }
       else { await subscribePush(user.id); setPushStatus('subscribed') }
-    } catch (err) { alert(err.message) }
+    } catch (err) { toast(err.message, 'error') }
     finally { setPushLoading(false) }
   }
 
@@ -190,14 +192,14 @@ export default function SettingsPage() {
   const handleAddRoom = async (floor) => {
     const roomNo = (newRoomInputs[floor] || '').trim()
     if (!roomNo) return
-    if (rooms.some((r) => r.room_no === roomNo)) { alert(`${roomNo}호는 이미 존재합니다.`); return }
+    if (rooms.some((r) => r.room_no === roomNo)) { toast(`${roomNo}호는 이미 존재합니다.`, 'error'); return }
     setSavingRoom(true)
     const floorRooms = rooms.filter((r) => r.floor === floor)
     const maxOrder   = floorRooms.length > 0 ? Math.max(...floorRooms.map((r) => r.sort_order || 0)) : -1
     const { data, error } = await supabase
       .from('room_master').insert({ floor, room_no: roomNo, sort_order: maxOrder + 1 })
       .select('id, floor, room_no, sort_order').single()
-    if (error) alert('객실 추가 실패: ' + error.message)
+    if (error) toast('객실 추가 실패: ' + error.message, 'error')
     else {
       setRooms((prev) => [...prev, data].sort((a, b) => a.floor - b.floor || (a.sort_order ?? 0) - (b.sort_order ?? 0)))
       setNewRoomInputs((prev) => ({ ...prev, [floor]: '' }))
@@ -210,7 +212,7 @@ export default function SettingsPage() {
   const handleDeleteRoom = async (room) => {
     if (!window.confirm(`${room.room_no}호를 삭제하시겠습니까?`)) return
     const { error } = await supabase.from('room_master').update({ is_active: false }).eq('id', room.id)
-    if (error) alert('삭제 실패: ' + error.message)
+    if (error) toast('삭제 실패: ' + error.message, 'error')
     else { setRooms((prev) => prev.filter((r) => r.id !== room.id)); invalidateCache(CACHE_KEYS.rooms) }
   }
 
@@ -221,8 +223,8 @@ export default function SettingsPage() {
     const rFrom = parseInt(bulkRoomFrom, 10)
     const rTo   = parseInt(bulkRoomTo, 10)
 
-    if (!fFrom || !fTo || !rFrom || !rTo) { alert('층 범위와 호수 범위를 모두 입력해주세요.'); return }
-    if (fFrom > fTo || rFrom > rTo) { alert('시작값이 끝값보다 클 수 없습니다.'); return }
+    if (!fFrom || !fTo || !rFrom || !rTo) { toast('층 범위와 호수 범위를 모두 입력해주세요.', 'error'); return }
+    if (fFrom > fTo || rFrom > rTo) { toast('시작값이 끝값보다 클 수 없습니다.', 'error'); return }
 
     const total = (fTo - fFrom + 1) * (rTo - rFrom + 1)
     if (!window.confirm(`${fFrom}층~${fTo}층, ${rFrom}호~${rTo}호\n총 ${total}개 객실을 생성합니다.`)) return
@@ -241,7 +243,7 @@ export default function SettingsPage() {
       }
     }
 
-    if (inserts.length === 0) { alert('생성할 새 객실이 없습니다 (이미 모두 존재).'); setBulkLoading(false); return }
+    if (inserts.length === 0) { toast('생성할 새 객실이 없습니다 (이미 모두 존재).', 'error'); setBulkLoading(false); return }
 
     // 50개씩 나눠서 삽입 (Supabase 요청 크기 제한 대비)
     const chunks = []
@@ -249,12 +251,12 @@ export default function SettingsPage() {
 
     for (const chunk of chunks) {
       const { error } = await supabase.from('room_master').insert(chunk)
-      if (error) { alert('일괄 생성 실패: ' + error.message); setBulkLoading(false); return }
+      if (error) { toast('일괄 생성 실패: ' + error.message, 'error'); setBulkLoading(false); return }
     }
 
     await fetchRooms()
     await invalidateCache(CACHE_KEYS.rooms)
-    alert(`${inserts.length}개 객실이 생성되었습니다.`)
+    toast(`${inserts.length}개 객실이 생성되었습니다.`, 'success')
     setBulkFloorFrom(''); setBulkFloorTo(''); setBulkRoomFrom(''); setBulkRoomTo('')
     setBulkLoading(false)
   }
@@ -266,8 +268,8 @@ export default function SettingsPage() {
     const rFrom = parseInt(delRoomFrom, 10)
     const rTo   = parseInt(delRoomTo, 10)
 
-    if (!fFrom || !fTo || !rFrom || !rTo) { alert('층 범위와 호수 범위를 모두 입력해주세요.'); return }
-    if (fFrom > fTo || rFrom > rTo) { alert('시작값이 끝값보다 클 수 없습니다.'); return }
+    if (!fFrom || !fTo || !rFrom || !rTo) { toast('층 범위와 호수 범위를 모두 입력해주세요.', 'error'); return }
+    if (fFrom > fTo || rFrom > rTo) { toast('시작값이 끝값보다 클 수 없습니다.', 'error'); return }
 
     // 삭제 대상 room_no 목록 생성
     const targetNos = new Set()
@@ -278,7 +280,7 @@ export default function SettingsPage() {
     }
     const targets = rooms.filter((r) => targetNos.has(r.room_no))
 
-    if (targets.length === 0) { alert('삭제할 객실이 없습니다.'); return }
+    if (targets.length === 0) { toast('삭제할 객실이 없습니다.', 'error'); return }
     if (!window.confirm(`${fFrom}층~${fTo}층, ${rFrom}호~${rTo}호 범위\n총 ${targets.length}개 객실을 삭제합니다.`)) return
 
     setDelBulkLoading(true)
@@ -290,12 +292,12 @@ export default function SettingsPage() {
 
     for (const chunk of chunks) {
       const { error } = await supabase.from('room_master').update({ is_active: false }).in('id', chunk)
-      if (error) { alert('일괄 삭제 실패: ' + error.message); setDelBulkLoading(false); return }
+      if (error) { toast('일괄 삭제 실패: ' + error.message, 'error'); setDelBulkLoading(false); return }
     }
 
     setRooms((prev) => prev.filter((r) => !targetNos.has(r.room_no)))
     await invalidateCache(CACHE_KEYS.rooms)
-    alert(`${targets.length}개 객실이 삭제되었습니다.`)
+    toast(`${targets.length}개 객실이 삭제되었습니다.`, 'success')
     setDelFloorFrom(''); setDelFloorTo(''); setDelRoomFrom(''); setDelRoomTo('')
     setDelBulkLoading(false)
   }
@@ -304,7 +306,7 @@ export default function SettingsPage() {
   const handleResetPin = async (staff) => {
     const pin = window.prompt(`[${staff.name}] 새 PIN을 입력하세요 (6자리 숫자)`, '000000')
     if (pin === null) return
-    if (!/^\d{6}$/.test(pin)) { alert('PIN은 6자리 숫자만 입력 가능합니다.'); return }
+    if (!/^\d{6}$/.test(pin)) { toast('PIN은 6자리 숫자만 입력 가능합니다.', 'error'); return }
     setTogglingId(staff.id)
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-pin`, {
@@ -315,9 +317,9 @@ export default function SettingsPage() {
     if (res.ok) {
       setStaffList((prev) => prev.map((s) => s.id === staff.id ? { ...s, is_locked: false } : s))
       invalidateCache(CACHE_KEYS.users)
-      alert(`[${staff.name}] PIN이 초기화되었습니다.`)
+      toast(`[${staff.name}] PIN이 초기화되었습니다.`, 'success')
     } else {
-      const r = await res.json(); alert('PIN 초기화 실패: ' + (r.error || '오류'))
+      const r = await res.json(); toast('PIN 초기화 실패: ' + (r.error || '오류'), 'error')
     }
     setTogglingId(null)
   }
