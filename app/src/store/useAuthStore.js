@@ -17,14 +17,20 @@ const useAuthStore = create((set, get) => ({
 
   // ─────────────────────────────────────────────
   // 앱 시작 시 호출 — 기존 세션 복원 + 세션 변경 구독
+  // try-catch-finally로 네트워크 hang 시에도 loading: false 보장
   // ─────────────────────────────────────────────
   init: async () => {
-    const { data: { session } } = await supabase.auth.getSession()
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
 
-    if (session) {
-      const profile = await get()._fetchProfile(session.user.id)
-      set({ session, user: profile, loading: false })
-    } else {
+      if (session) {
+        const profile = await get()._fetchProfile(session.user.id)
+        set({ session, user: profile })
+      }
+    } catch (err) {
+      console.error('세션 초기화 오류:', err)
+    } finally {
+      // 성공·실패·타임아웃 무관하게 반드시 loading 해제
       set({ loading: false })
     }
 
@@ -41,14 +47,20 @@ const useAuthStore = create((set, get) => ({
 
   // ─────────────────────────────────────────────
   // users 테이블에서 프로필 조회 (내부 전용)
+  // 실패 시 null 반환 — init의 finally에서 loading: false 보장
   // ─────────────────────────────────────────────
   _fetchProfile: async (userId) => {
-    const { data } = await supabase
-      .from('users')
-      .select('id, name, email, role, avatar_url, is_locked, is_active')
-      .eq('id', userId)
-      .single()
-    return data
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('id, name, email, role, avatar_url, is_locked, is_active')
+        .eq('id', userId)
+        .single()
+      return data
+    } catch (err) {
+      console.error('프로필 조회 오류:', err)
+      return null
+    }
   },
 
   // ─────────────────────────────────────────────

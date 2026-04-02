@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import useAuthStore from '../store/useAuthStore'
 import LoginPage from '../pages/LoginPage'
@@ -29,9 +30,18 @@ const Placeholder = ({ name }) => (
 )
 
 // 미로그인 시 /login 리다이렉트 + MainLayout 래핑
+// loadingTimeout: init()이 8초 이상 걸리면 강제로 loading 해제 (무한 스피닝 방지)
 function ProtectedRoute({ children }) {
   const { session, loading } = useAuthStore()
-  if (loading) return null
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    if (!loading) return
+    const id = setTimeout(() => setTimedOut(true), 8000)
+    return () => clearTimeout(id)
+  }, [loading])
+
+  if (loading && !timedOut) return null
   if (!session) return <Navigate to="/login" replace />
   return <MainLayout>{children}</MainLayout>
 }
