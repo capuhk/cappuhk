@@ -157,7 +157,10 @@ export default function InspectionFormPage() {
         if (upErr) throw upErr
 
         // 이미지 전체 교체 (기존 삭제 후 재삽입)
-        await supabase.from('inspection_images').delete().eq('inspection_id', id)
+        // 삭제 실패 시 throw — 삽입 중단으로 데이터 유실 방지
+        const { error: delErr } = await supabase
+          .from('inspection_images').delete().eq('inspection_id', id)
+        if (delErr) throw delErr
 
         if (imagePaths.length > 0) {
           await supabase.from('inspection_images').insert(

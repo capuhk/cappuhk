@@ -117,8 +117,9 @@ const useNotificationStore = create((set, get) => ({
 
     const readIds    = loadReadIds(userId)
     // initTime 이전 항목은 자동으로 읽음 처리 (뱃지 폭탄 방지)
+    // created_at이 없는 항목은 읽음 처리 (undefined 비교 오작동 방지)
     const unreadCount = items.filter(
-      (i) => i.created_at > initTime && !readIds.has(i.id)
+      (i) => i.created_at && i.created_at > initTime && !readIds.has(i.id)
     ).length
 
     set({ items, unreadCount, loading: false })
@@ -168,7 +169,7 @@ const useNotificationStore = create((set, get) => ({
     const initTime = getInitTime(userId)
     const items    = get().items
     const unreadCount = items.filter(
-      (i) => i.created_at > initTime && !readIds.has(i.id)
+      (i) => i.created_at && i.created_at > initTime && !readIds.has(i.id)
     ).length
     set({ unreadCount })
   },

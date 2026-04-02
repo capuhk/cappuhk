@@ -116,8 +116,11 @@ export default function FacilityOrderFormPage() {
 
         if (upErr) throw upErr
 
-        // 이미지 전체 교체
-        await supabase.from('facility_order_images').delete().eq('facility_order_id', id)
+        // 이미지 전체 교체 (기존 삭제 후 재삽입)
+        // 삭제 실패 시 throw — 삽입 중단으로 데이터 유실 방지
+        const { error: delErr } = await supabase
+          .from('facility_order_images').delete().eq('facility_order_id', id)
+        if (delErr) throw delErr
 
         if (imagePaths.length > 0) {
           await supabase.from('facility_order_images').insert(

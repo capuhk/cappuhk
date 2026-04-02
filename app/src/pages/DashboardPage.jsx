@@ -83,12 +83,13 @@ export default function DashboardPage() {
 
         // 오늘 완료된 인스펙션 별도 조회
         const todayStr = dayjs().format('YYYY-MM-DD')
-        const { data: completedData } = await supabase
+        const { data: completedData, error: completedError } = await supabase
           .from('inspections')
           .select('id, room_no, note, work_date, created_at, users!author_id(name)')
           .eq('status', '완료')
           .eq('work_date', todayStr)
           .abortSignal(controller.signal)
+        if (completedError) throw completedError
 
         // 완료 행을 RPC 반환 형식에 맞게 변환
         const completedRows = (completedData || []).map((r) => ({
