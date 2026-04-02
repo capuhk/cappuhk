@@ -34,8 +34,11 @@ export default function BottomTabBar() {
   const visibleTabs = TABS.filter((tab) => tab.roles.includes(user?.role))
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 h-16
-      bg-zinc-900 border-t border-white/10 flex lg:hidden">
+    /* safe-area-inset-bottom 로 홈 인디케이터 영역 확장 */
+    <nav className="fixed bottom-0 left-0 right-0 z-40
+      bg-zinc-900 border-t border-white/10 flex flex-col lg:hidden"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="flex h-16 w-full">
       {visibleTabs.map(({ path, label, Icon }) => {
         const active = location.pathname.startsWith(path)
         return (
@@ -50,6 +53,7 @@ export default function BottomTabBar() {
           </button>
         )
       })}
+      </div>
     </nav>
   )
 }

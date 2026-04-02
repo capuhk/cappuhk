@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-03-31 (긴급오더·이관 기능 구현 완료)
-> **버전**: v3.9 (v3.8 + 긴급오더·시설오더→객실하자 이관·masterCache 중복 버그 수정)
+> **최종 업데이트**: 2026-04-02 (모바일 UX 고도화 + Vercel 배포 완료)
+> **버전**: v4.0 (v3.9 + 모바일 UX·배포·pull-to-refresh·무한스피닝 수정)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 

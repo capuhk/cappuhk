@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CheckCircle, Loader2 } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CheckCircle, Loader2, CalendarDays, FileSpreadsheet, Printer } from 'lucide-react'
+import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
+import { downloadExcel, openPrintWindow, prepareDefectExport } from '../../utils/exportUtils'
 
 // 상태별 뱃지 색상
 const STATUS_COLOR = {
@@ -21,6 +23,11 @@ export default function DefectListPage() {
   const { refreshKey, triggerRefresh } = useRefreshStore()
   const { pullDistance, refreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
 
+  // ── 날짜 범위 — 기본값: 최근 30일 ──────────────
+  const [dateFrom, setDateFrom] = useState(() => dayjs().subtract(30, 'day').format('YYYY-MM-DD'))
+  const [dateTo,   setDateTo]   = useState(() => dayjs().format('YYYY-MM-DD'))
+  const [dateOpen, setDateOpen] = useState(false)
+
   const [records, setRecords]         = useState([])
   const [loading, setLoading]         = useState(true)
   const [search, setSearch]           = useState('')
@@ -28,6 +35,7 @@ export default function DefectListPage() {
   const [statusFilter, setStatusFilter] = useState('All')
   // 객실번호별 아코디언 열림 상태
   const [openRooms, setOpenRooms] = useState(new Set())
+  const [exporting, setExporting] = useState(false)  // 내보내기 로딩
 
   // ── 데이터 로드 ───────────────────────────────
   useEffect(() => {
@@ -40,6 +48,9 @@ export default function DefectListPage() {
         const { data, error } = await supabase
           .from('defects')
           .select('id, room_no, division, location, category, status, memo, created_at, users!author_id(name)')
+          // 날짜 범위 필터 (created_at 기준)
+          .gte('created_at', `${dateFrom}T00:00:00`)
+          .lte('created_at', `${dateTo}T23:59:59`)
           .order('room_no', { ascending: true })
           .order('created_at', { ascending: false })
           .abortSignal(controller.signal)
@@ -56,7 +67,29 @@ export default function DefectListPage() {
     fetchData()
 
     return () => { clearTimeout(timeoutId); controller.abort() }
-  }, [refreshKey])
+  }, [refreshKey, dateFrom, dateTo])
+
+  // ── 내보내기 (엑셀 / PDF인쇄) ─────────────────
+  const handleExport = async (type) => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const { excelHeaders, excelRows, printHeaders, printRows } =
+        await prepareDefectExport(filtered)
+      const dateRange = `${dateFrom} ~ ${dateTo}`
+      const filename  = `객실하자_${dateFrom}_${dateTo}`
+      if (type === 'excel') {
+        downloadExcel(excelHeaders, excelRows, filename)
+      } else {
+        openPrintWindow('객실하자 목록', printHeaders, printRows, dateRange)
+      }
+    } catch (err) {
+      console.error('내보내기 오류:', err)
+      alert('내보내기 중 오류가 발생했습니다.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // ── 상태 필터 + 검색 (객실번호 + 작성자) ──────
   const filtered = useMemo(() => {
@@ -129,9 +162,9 @@ export default function DefectListPage() {
             style={{ transform: `rotate(${pullDistance * 3}deg)` }} />
         </div>
       )}
-      {/* 검색바 */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center gap-2 px-3 py-2.5 bg-white/10 rounded-xl border border-white/20">
+      {/* 검색바 + 기간 버튼 + 내보내기 버튼 */}
+      <div className="px-4 pt-4 pb-2 flex gap-2">
+        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-white/10 rounded-xl border border-white/20">
           <Search size={16} className="text-white/40 shrink-0" />
           <input
             type="text"
@@ -141,7 +174,74 @@ export default function DefectListPage() {
             className="flex-1 bg-transparent text-white text-sm placeholder:text-white/30 outline-none"
           />
         </div>
+        {/* 날짜범위 토글 버튼 */}
+        <button
+          onClick={() => setDateOpen((v) => !v)}
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors ${
+            dateOpen
+              ? 'bg-white/20 border-white/40 text-white'
+              : 'bg-white/10 border-white/20 text-white/50'
+          }`}
+        >
+          <CalendarDays size={15} />
+          <span className="hidden sm:inline">기간</span>
+        </button>
+        {/* 엑셀 내보내기 */}
+        <button
+          onClick={() => handleExport('excel')}
+          disabled={exporting || filtered.length === 0}
+          className="shrink-0 flex items-center px-2.5 py-2.5 rounded-xl border
+            border-white/20 bg-white/10 text-white/50 hover:bg-white/15
+            disabled:opacity-30 transition-colors"
+          title="엑셀 저장"
+        >
+          {exporting ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />}
+        </button>
+        {/* PDF 인쇄 */}
+        <button
+          onClick={() => handleExport('print')}
+          disabled={exporting || filtered.length === 0}
+          className="shrink-0 flex items-center px-2.5 py-2.5 rounded-xl border
+            border-white/20 bg-white/10 text-white/50 hover:bg-white/15
+            disabled:opacity-30 transition-colors"
+          title="PDF 인쇄"
+        >
+          <Printer size={15} />
+        </button>
       </div>
+
+      {/* 날짜 범위 입력 패널 */}
+      {dateOpen && (
+        <div className="px-4 pb-3 flex items-center gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/20
+              text-white text-sm outline-none focus:border-white/40"
+          />
+          <span className="text-white/30 text-sm shrink-0">~</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/20
+              text-white text-sm outline-none focus:border-white/40"
+          />
+          <button
+            onClick={() => { setDateFrom(dayjs().subtract(30, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
+            className="shrink-0 px-2.5 py-2 bg-white/10 rounded-xl border border-white/20 text-xs text-white/50 hover:bg-white/15"
+          >
+            30일
+          </button>
+          <button
+            onClick={() => { setDateFrom(dayjs().subtract(90, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
+            className="shrink-0 px-2.5 py-2 bg-white/10 rounded-xl border border-white/20 text-xs text-white/50 hover:bg-white/15"
+          >
+            90일
+          </button>
+        </div>
+      )}
 
       {/* 상태 필터 칩 */}
       <div className="px-4 pb-3 flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>

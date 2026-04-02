@@ -86,8 +86,9 @@ export default function MainLayout({ children }) {
           onMenuClick={() => setSideMenuOpen(true)}
         />
 
-        {/* 본문 — 헤더(56px) + 하단탭(64px) 높이 확보 */}
-        <main className="pt-14 pb-16 lg:pb-0 min-h-screen">
+        {/* 본문 — 헤더(56px) + 하단탭(64px+safe-area) 높이 확보 */}
+        <main className="pt-14 lg:pb-0 min-h-screen"
+          style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
           <div className="max-w-[680px] mx-auto lg:max-w-none">
             {children}
           </div>

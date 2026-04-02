@@ -8,8 +8,8 @@ import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../util
 import useRefreshStore from '../store/useRefreshStore'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 
-// 필터 항목 순서 — 완료 제거 (대시보드는 미처리 현황만 표시)
-const FILTERS = ['환기중', '진행중', '시설오더']
+// 필터 항목 순서 — 완료는 오늘 기준 인스펙션 완료 건
+const FILTERS = ['환기중', '진행중', '시설오더', '완료']
 
 // 유형별 스타일 (배지 + 컬럼 헤더)
 const TYPE_STYLE = {
@@ -75,11 +75,35 @@ export default function DashboardPage() {
       setLoading(true)
       setRows([])
       try {
+        // 미처리 현황 (기존 RPC)
         const { data, error } = await supabase
           .rpc('get_unresolved_stats')
           .abortSignal(controller.signal)
         if (error) throw error
-        setRows(data || [])
+
+        // 오늘 완료된 인스펙션 별도 조회
+        const todayStr = dayjs().format('YYYY-MM-DD')
+        const { data: completedData } = await supabase
+          .from('inspections')
+          .select('id, room_no, note, work_date, created_at, users!author_id(name)')
+          .eq('status', '완료')
+          .eq('work_date', todayStr)
+          .abortSignal(controller.signal)
+
+        // 완료 행을 RPC 반환 형식에 맞게 변환
+        const completedRows = (completedData || []).map((r) => ({
+          id:        r.id,
+          type:      '완료',
+          room_no:   r.room_no,
+          author:    r.users?.name || '',
+          note:      r.note || '',
+          work_date: r.work_date,
+          created_at: r.created_at,
+          sub_label: null,
+          status:    '완료',
+        }))
+
+        setRows([...(data || []), ...completedRows])
       } catch (err) {
         if (err?.name !== 'AbortError') console.error('대시보드 로드 오류:', err)
       } finally {
@@ -156,13 +180,13 @@ export default function DashboardPage() {
     }
   }
 
-  // 칸반 컬럼 수 → Tailwind grid 클래스
+  // 칸반 컬럼 수 → Tailwind grid 클래스 (최대 4열)
   const colClass = {
     1: 'lg:grid-cols-1',
     2: 'lg:grid-cols-2',
     3: 'lg:grid-cols-3',
     4: 'lg:grid-cols-4',
-  }[visibleFilters.length] || 'lg:grid-cols-4'
+  }[Math.min(visibleFilters.length, 4)] || 'lg:grid-cols-4'
 
   // ── 공용 카드 컴포넌트 ────────────────────────
   const Card = ({ row, showBadge }) => {

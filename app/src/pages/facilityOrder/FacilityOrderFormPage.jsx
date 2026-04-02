@@ -304,7 +304,7 @@ export default function FacilityOrderFormPage() {
       </div>
 
       {/* Thumb-zone 저장 버튼 */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 lg:pl-60">
+      <div className="fixed left-0 right-0 z-20 lg:pl-60" style={{ bottom: 'var(--form-btn-bottom)' }}>
         <div className="max-w-[680px] mx-auto lg:max-w-none px-4 pb-4 pt-3
           bg-gradient-to-t from-zinc-950 via-zinc-950/95 to-transparent">
           <button

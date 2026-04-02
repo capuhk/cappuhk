@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2 } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
+import { getMasterData, getCachedDataSync, CACHE_KEYS } from '../../utils/masterCache'
+import { downloadExcel, openPrintWindow, prepareFacilityExport } from '../../utils/exportUtils'
 
 // 상태별 뱃지 색상 — '이관' 포함
 const STATUS_COLOR = {
@@ -14,14 +16,14 @@ const STATUS_COLOR = {
   이관:     'bg-purple-500/20 text-purple-400',
 }
 
-// 상태 필터 칩 목록
+// 상태 필터 칩 목록 — All을 첫 번째로
 const FILTER_OPTIONS = [
+  { label: 'All',      value: 'all' },
   { label: '미완료', value: 'incomplete' },
   { label: '접수대기', value: '접수대기' },
   { label: '처리중',   value: '처리중' },
   { label: '완료',     value: '완료' },
   { label: '이관',     value: '이관' },
-  { label: 'All',      value: 'all' },
 ]
 
 export default function FacilityOrderListPage() {
@@ -35,11 +37,15 @@ export default function FacilityOrderListPage() {
   // 날짜 범위 입력 패널 열림 여부
   const [dateOpen, setDateOpen] = useState(false)
 
+  const [policies, setPolicies] = useState(
+    () => getCachedDataSync(CACHE_KEYS.appPolicies) || []
+  )
   const [records, setRecords]           = useState([])
   const [loading, setLoading]           = useState(true)
   const [search, setSearch]             = useState('')
-  const [statusFilter, setStatusFilter] = useState('incomplete')
+  const [statusFilter, setStatusFilter] = useState('all')  // 기본값: All
   const [openDates, setOpenDates]       = useState(new Set())
+  const [exporting, setExporting]       = useState(false)  // 내보내기 로딩
 
   // ── 데이터 로드 — 날짜 범위 서버 필터 적용 ───────
   useEffect(() => {
@@ -72,9 +78,32 @@ export default function FacilityOrderListPage() {
     }
 
     fetchData()
+    getMasterData(CACHE_KEYS.appPolicies).then(setPolicies).catch(console.error)
 
     return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey, dateFrom, dateTo])
+
+  // ── 내보내기 (엑셀 / PDF인쇄) ─────────────────
+  const handleExport = async (type) => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const { excelHeaders, excelRows, printHeaders, printRows } =
+        await prepareFacilityExport(filtered, policies)
+      const dateRange = `${dateFrom} ~ ${dateTo}`
+      const filename  = `시설오더_${dateFrom}_${dateTo}`
+      if (type === 'excel') {
+        downloadExcel(excelHeaders, excelRows, filename)
+      } else {
+        openPrintWindow('시설오더 목록', printHeaders, printRows, dateRange)
+      }
+    } catch (err) {
+      console.error('내보내기 오류:', err)
+      alert('내보내기 중 오류가 발생했습니다.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // ── 날짜 목록 (고유값, 최신순) ───────────────
   const dates = useMemo(() => {
@@ -187,6 +216,28 @@ export default function FacilityOrderListPage() {
         >
           <CalendarDays size={15} />
           <span className="hidden sm:inline">기간</span>
+        </button>
+        {/* 엑셀 내보내기 */}
+        <button
+          onClick={() => handleExport('excel')}
+          disabled={exporting || filtered.length === 0}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-2.5 rounded-xl border
+            border-white/20 bg-white/10 text-white/50 hover:bg-white/15
+            disabled:opacity-30 transition-colors"
+          title="엑셀 저장"
+        >
+          {exporting ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />}
+        </button>
+        {/* PDF 인쇄 */}
+        <button
+          onClick={() => handleExport('print')}
+          disabled={exporting || filtered.length === 0}
+          className="shrink-0 flex items-center gap-1 px-2.5 py-2.5 rounded-xl border
+            border-white/20 bg-white/10 text-white/50 hover:bg-white/15
+            disabled:opacity-30 transition-colors"
+          title="PDF 인쇄"
+        >
+          <Printer size={15} />
         </button>
       </div>
 
