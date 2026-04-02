@@ -17,17 +17,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, content-type',
 }
 
-// VAPID 초기화
-webpush.setVapidDetails(
-  Deno.env.get('VAPID_SUBJECT')!,
-  Deno.env.get('VAPID_PUBLIC_KEY')!,
-  Deno.env.get('VAPID_PRIVATE_KEY')!,
-)
-
 Deno.serve(async (req) => {
+  // OPTIONS preflight — 모듈 초기화 에러 없이 항상 응답
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+
+  // VAPID 초기화 — 요청 처리 시점에 수행 (초기화 실패 시 함수 crash 방지)
+  const vapidSubject    = Deno.env.get('VAPID_SUBJECT')
+  const vapidPublicKey  = Deno.env.get('VAPID_PUBLIC_KEY')
+  const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')
+
+  if (!vapidSubject || !vapidPublicKey || !vapidPrivateKey) {
+    return new Response(JSON.stringify({ error: 'VAPID 환경 변수 미설정' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
+
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
 
   if (req.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405, headers: corsHeaders })
