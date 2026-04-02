@@ -1,6 +1,6 @@
 import { precacheAndRoute } from 'workbox-precaching'
 import { registerRoute }    from 'workbox-routing'
-import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies'
+import { NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies'
 
 // ─────────────────────────────────────────────
 // Workbox 프리캐시 — Vite 빌드 시 __WB_MANIFEST 자동 주입
@@ -8,17 +8,15 @@ import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies'
 precacheAndRoute(self.__WB_MANIFEST)
 
 // ─────────────────────────────────────────────
-// [1] Supabase REST API — NetworkFirst
-//   네트워크 응답 우선, 3초 내 무응답 시 캐시로 대체 (오프라인 대응)
+// [1] Supabase REST API — NetworkOnly
+//   캐시 없이 직접 네트워크 요청 — SW 개입 시 iOS Safari에서
+//   AbortController 신호 전파 문제로 무한 스피닝 발생하므로 캐시 비활성화
 // ─────────────────────────────────────────────
 registerRoute(
   ({ url }) =>
     url.hostname.includes('supabase.co') &&
     url.pathname.startsWith('/rest/v1/'),
-  new NetworkFirst({
-    cacheName:            'supabase-api-cache',
-    networkTimeoutSeconds: 3,
-  }),
+  new NetworkOnly(),
 )
 
 // ─────────────────────────────────────────────
