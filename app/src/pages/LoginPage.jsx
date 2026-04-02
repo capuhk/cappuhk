@@ -32,8 +32,9 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const { login, getSavedId, clearSavedId, error, clearError, session, loading } = useAuthStore()
 
-  // 단계: 'id' = 아이디 입력, 'pin' = PIN 입력
-  const [step, setStep] = useState('pin')
+  // 단계: null = 로드 중, 'id' = 아이디 입력, 'pin' = PIN 입력
+  // null로 시작해서 저장된 아이디 확인 후 결정 — 초기 깜빡임 방지
+  const [step, setStep] = useState(null)
   const [savedId, setSavedId] = useState('')
   const [identifier, setIdentifier] = useState('')  // id 단계에서 입력값
   const [pin, setPin] = useState('')
@@ -127,6 +128,9 @@ export default function LoginPage() {
   // ─────────────────────────────────────────────
   // 렌더
   // ─────────────────────────────────────────────
+  // 저장된 아이디 확인 전 — 빈 화면 유지 (깜빡임 방지)
+  if (step === null) return null
+
   return (
     <div className="min-h-screen bg-zinc-900 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">

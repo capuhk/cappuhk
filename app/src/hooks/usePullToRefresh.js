@@ -22,8 +22,8 @@ export function usePullToRefresh(onRefresh, threshold = 70) {
       if (!pulling.current || startY.current === null) return
       const delta = e.touches[0].clientY - startY.current
       if (delta > 0 && window.scrollY === 0) {
-        // 기본 스크롤 방지 (당기는 중)
-        e.preventDefault()
+        // passive: true이므로 preventDefault()는 브라우저가 무시 — 제거
+        // 네이티브 오버스크롤은 CSS overscroll-behavior: none 으로 차단
         // 저항감 적용 — 많이 당길수록 점점 더 힘들게
         setPullDistance(Math.min(delta * 0.5, threshold * 1.5))
       }

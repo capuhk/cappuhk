@@ -121,8 +121,8 @@ export default function InspectionReviewPage() {
         ;(data || []).forEach((r) => results.push({ ...r, _type: '시설오더' }))
       }
 
-      // 등록시간 오름차순 정렬
-      results.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      // 등록시간 내림차순 정렬 — 최근 항목이 상단
+      results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       setRows(results)
     } catch (err) {
       console.error('데이터 로드 오류:', err)
