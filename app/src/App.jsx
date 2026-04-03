@@ -15,6 +15,31 @@ function App() {
     return cleanup
   }, [])
 
+  useEffect(() => {
+    // 백그라운드 복귀 시 무한스피너 방지
+    // iOS Safari/PWA에서 5분 이상 백그라운드 → Supabase 클라이언트 내부 상태 손상
+    // → 토큰 갱신 fetch가 hanging 상태로 남아 모든 쿼리 대기
+    // → Safari 자체 새로고침과 동일하게 강제 리로드로 해결
+    let hiddenAt = null
+    const RELOAD_THRESHOLD_MS = 5 * 60 * 1000 // 5분
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+      } else if (document.visibilityState === 'visible' && hiddenAt !== null) {
+        const hiddenMs = Date.now() - hiddenAt
+        hiddenAt = null
+        if (hiddenMs >= RELOAD_THRESHOLD_MS) {
+          // 세션은 localStorage에 보존됨 — 리로드 후 자동 로그인 유지
+          window.location.reload()
+        }
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
   return (
     <BrowserRouter>
       <AppRouter />

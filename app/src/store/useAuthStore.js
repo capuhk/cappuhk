@@ -34,13 +34,18 @@ const useAuthStore = create((set, get) => ({
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'INITIAL_SESSION') {
-          // 앱 첫 로드 — 세션 있으면 프로필 조회, 없으면 로그인
+          // 앱 첫 로드 — 세션 즉시 반영 후 프로필 조회
+          // session을 먼저 set해야 타이머(5s)가 먼저 터져도 /login으로 튕기지 않음
           if (session) {
+            set({ session })
+            clearTimeout(timer)
+            set({ loading: false })
             const profile = await get()._fetchProfile(session.user.id)
-            set({ session, user: profile })
+            if (profile) set({ user: profile })
+          } else {
+            clearTimeout(timer)
+            set({ loading: false })
           }
-          clearTimeout(timer)
-          set({ loading: false })
 
         } else if (event === 'SIGNED_IN') {
           // 로그인 성공

@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-02 (모바일 UX 고도화 + Vercel 배포 완료)
-> **버전**: v4.0 (v3.9 + 모바일 UX·배포·pull-to-refresh·무한스피닝 수정)
+> **최종 업데이트**: 2026-04-03 (전체 아키텍처 버그 리뷰 — Phase A/B/C 수정)
+> **버전**: v4.2 (v4.1 + SPA fallback·send-push CORS·인스펙션조회 정렬·로그인 깜빡임·PTR·데이터 안정성·코드품질)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -2019,3 +2019,6 @@ $$ LANGUAGE SQL STABLE;
 | v3.7 | 2026-03-29 | Phase 3 전체 구현 완료 — 게시판·직원목록 CRUD, 인스펙션조회 재설계(다중선택 필터+등록시간), 대시보드 칸반보드(PC다단그리드+다중선택필터+빠른처리버튼), 설정페이지(푸시토글+층/객실마스터관리중앙화), PC사이드바 메인탭 추가, FAB 버그수정(중복·/new에서 수정아이콘), SW Workbox runtime caching, migration_v4(RLS개선), migration_v5(get_unresolved_stats 확장) |
 | v3.8 | 2026-03-30 | Phase 4 고도화 완료 — 아바타 업로드, masterCache TTL 24h 재설계, 동적 인스펙션 상태 관리, 앱 운영 정책, 전역 헤더 알림 벨(NotificationDrawer), 전역 새로고침 버튼(refreshKey), PIN 6자리 통일, 유저등록/PIN변경 무한로딩 수정 |
 | v3.9 | 2026-03-31 | 긴급오더(is_urgent), 시설오더→객실하자 이관(BottomSheet 2단계+트랜잭션 RPC+이미지 복사), facility_orders.status 접수중→처리중 통일, masterCache 중복 선언 버그 수정, migration_v6 |
+| v4.0 | 2026-04-02 | 모바일 UX 고도화 — viewport-fit=cover 안전영역, BottomTabBar safe area, 폼 저장 버튼 --form-btn-bottom CSS 변수(5개 폼), SW Supabase REST NetworkOnly(iOS Safari AbortController 무한스피닝 수정), 시설오더·객실하자 엑셀·PDF 출력(exportUtils.js), 대시보드 완료 탭 추가(today 완료 인스펙션), 시설오더 기본필터 All 변경 |
+| v4.1 | 2026-04-02 | PWA 브랜딩 — 카푸치노 호텔 로고 자동 크롭·리사이즈로 pwa-192x192.png·pwa-512x512.png·apple-touch-icon.png·favicon.svg 교체, index.html 타이틀 Cappuccino Hotel 변경 |
+| v4.2 | 2026-04-03 | 전체 아키텍처 버그 리뷰 3단계 완료 — [A] vercel.json SPA rewrite(새로고침 404), send-push CORS(VAPID 초기화 위치), overscroll-behavior-y:none(PTR 충돌), 인스펙션조회 정렬 내림차순, 로그인 step null(깜빡임) [B] 이미지 삭제 에러체크 3폼, 대시보드 완료쿼리 에러체크, useNotificationStore created_at undefined 방어 [C] RoomPicker sort_order null, ImageUploader join 의존성, useAuthStore static import, SettingsPage alert→toast 전환 |

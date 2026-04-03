@@ -42,10 +42,11 @@ export default function FAB() {
     return (
       <button
         onClick={() => navigate(`${pathname}/edit`)}
-        className="fixed bottom-20 right-4 z-30 w-14 h-14 rounded-full
+        className="fixed right-4 z-30 w-14 h-14 rounded-full
           bg-blue-500 hover:bg-blue-400 shadow-lg
           flex items-center justify-center active:scale-95 transition-all
           lg:bottom-6"
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
       >
         <Pencil size={20} className="text-white" />
       </button>
@@ -70,10 +71,11 @@ export default function FAB() {
   return (
     <button
       onClick={() => navigate(config.to)}
-      className="fixed bottom-20 right-4 z-30 w-14 h-14 rounded-full
+      className="fixed right-4 z-30 w-14 h-14 rounded-full
         bg-blue-500 hover:bg-blue-400 shadow-lg
         flex items-center justify-center active:scale-95 transition-all
         lg:bottom-6"
+      style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <Plus size={26} className="text-white" />
     </button>
