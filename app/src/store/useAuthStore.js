@@ -17,32 +17,63 @@ const useAuthStore = create((set, get) => ({
 
   // ─────────────────────────────────────────────
   // 앱 시작 시 호출 — 기존 세션 복원 + 세션 변경 구독
-  // try-catch-finally로 네트워크 hang 시에도 loading: false 보장
+  //
+  // 무한 스피닝 원인:
+  //   1시간 idle → access_token 만료 → refresh_token 갱신 시도
+  //   → refresh_token도 만료 → 400 Bad Request → loading 미해제
+  //
+  // 해결:
+  //   - onAuthStateChange 이벤트로 토큰 만료·갱신 처리
+  //   - SIGNED_OUT / TOKEN_REFRESHED 실패 → 로컬 스토리지 초기화 후 로그인으로
+  //   - 5초 타임아웃 안전장치
   // ─────────────────────────────────────────────
-  init: async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
+  init: () => {
+    // 5초 안전장치 — 어떤 이유로든 이벤트가 오지 않으면 강제 해제
+    const timer = setTimeout(() => set({ loading: false }), 5000)
 
-      if (session) {
-        const profile = await get()._fetchProfile(session.user.id)
-        set({ session, user: profile })
-      }
-    } catch (err) {
-      console.error('세션 초기화 오류:', err)
-    } finally {
-      // 성공·실패·타임아웃 무관하게 반드시 loading 해제
-      set({ loading: false })
-    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'INITIAL_SESSION') {
+          // 앱 첫 로드 — 세션 있으면 프로필 조회, 없으면 로그인
+          if (session) {
+            const profile = await get()._fetchProfile(session.user.id)
+            set({ session, user: profile })
+          }
+          clearTimeout(timer)
+          set({ loading: false })
 
-    // 세션 변경(로그인/로그아웃/토큰갱신) 실시간 구독
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        const profile = await get()._fetchProfile(session.user.id)
-        set({ session, user: profile })
-      } else {
-        set({ session: null, user: null })
+        } else if (event === 'SIGNED_IN') {
+          // 로그인 성공
+          if (session) {
+            const profile = await get()._fetchProfile(session.user.id)
+            set({ session, user: profile })
+          }
+
+        } else if (event === 'TOKEN_REFRESHED') {
+          if (session) {
+            // 토큰 갱신 성공 — 세션 업데이트
+            set({ session })
+          } else {
+            // 토큰 갱신 실패 — 세션 만료 처리 (SIGNED_OUT 이벤트와 동일)
+            const savedId = localStorage.getItem(SAVED_ID_KEY)
+            localStorage.clear()
+            if (savedId) localStorage.setItem(SAVED_ID_KEY, savedId)
+            set({ session: null, user: null, loading: false })
+          }
+
+        } else if (event === 'SIGNED_OUT') {
+          // 로그아웃 또는 세션 강제 만료
+          // SAVED_ID_KEY는 유지 — 재로그인 시 아이디 자동완성
+          const savedId = localStorage.getItem(SAVED_ID_KEY)
+          localStorage.clear()
+          if (savedId) localStorage.setItem(SAVED_ID_KEY, savedId)
+          set({ session: null, user: null, loading: false })
+        }
       }
-    })
+    )
+
+    // 언마운트 시 구독 해제 (메모리 누수 방지)
+    return () => { subscription.unsubscribe(); clearTimeout(timer) }
   },
 
   // ─────────────────────────────────────────────

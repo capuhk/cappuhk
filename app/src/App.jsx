@@ -10,7 +10,9 @@ function App() {
 
   useEffect(() => {
     // 앱 첫 마운트 시 Supabase 세션 복원
-    init()
+    // init()은 onAuthStateChange 구독 해제 함수를 반환
+    const cleanup = init()
+    return cleanup
   }, [])
 
   return (
