@@ -18,48 +18,47 @@ const useAuthStore = create((set, get) => ({
   // ─────────────────────────────────────────────
   // 앱 시작 시 호출 — 기존 세션 복원 + 세션 변경 구독
   //
-  // 무한 스피닝 원인:
-  //   1시간 idle → access_token 만료 → refresh_token 갱신 시도
-  //   → refresh_token도 만료 → 400 Bad Request → loading 미해제
+  // INITIAL_SESSION 이벤트 방식 대신 getSession() 직접 호출:
+  //   onAuthStateChange의 INITIAL_SESSION은 내부적으로 토큰 갱신 네트워크 요청 가능
+  //   → iOS 백그라운드 복귀 시 네트워크 미준비 → hanging → 무한스피너
   //
-  // 해결:
-  //   - onAuthStateChange 이벤트로 토큰 만료·갱신 처리
-  //   - SIGNED_OUT / TOKEN_REFRESHED 실패 → 로컬 스토리지 초기화 후 로그인으로
-  //   - 5초 타임아웃 안전장치
+  //   getSession()은 valid token이면 localStorage에서 즉시 반환 (네트워크 불필요)
+  //   → loading: false가 수십 ms 내 해제
+  //
+  // 3초 안전장치: getSession()도 hanging 시 강제 해제
   // ─────────────────────────────────────────────
   init: () => {
-    // 5초 안전장치 — 어떤 이유로든 이벤트가 오지 않으면 강제 해제
-    const timer = setTimeout(() => set({ loading: false }), 5000)
+    // 3초 안전장치
+    const timer = setTimeout(() => set({ loading: false }), 3000)
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'INITIAL_SESSION') {
-          // 앱 첫 로드 — 세션 즉시 반영 후 프로필 조회
-          // session을 먼저 set해야 타이머(5s)가 먼저 터져도 /login으로 튕기지 않음
-          if (session) {
-            set({ session })
-            clearTimeout(timer)
-            set({ loading: false })
-            const profile = await get()._fetchProfile(session.user.id)
+    // getSession()으로 즉시 세션 복원 — valid token이면 네트워크 불필요
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(timer)
+        if (session) set({ session })
+        set({ loading: false })
+        // 프로필은 백그라운드에서 비동기 로드 (loading 해제 후 별도 진행)
+        if (session) {
+          get()._fetchProfile(session.user.id).then(profile => {
             if (profile) set({ user: profile })
-          } else {
-            clearTimeout(timer)
-            set({ loading: false })
-          }
+          })
+        }
+      })
+      .catch(() => {
+        // getSession 실패 (토큰 만료 + 갱신 오류 등) → 세션 없이 진행
+        clearTimeout(timer)
+        set({ loading: false })
+      })
 
-        } else if (event === 'SIGNED_IN') {
-          // 로그인 성공
-          if (session) {
-            const profile = await get()._fetchProfile(session.user.id)
-            set({ session, user: profile })
-          }
-
-        } else if (event === 'TOKEN_REFRESHED') {
+    // TOKEN_REFRESHED, SIGNED_OUT만 구독 — INITIAL_SESSION/SIGNED_IN은 위에서 처리
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'TOKEN_REFRESHED') {
           if (session) {
             // 토큰 갱신 성공 — 세션 업데이트
             set({ session })
           } else {
-            // 토큰 갱신 실패 — 세션 만료 처리 (SIGNED_OUT 이벤트와 동일)
+            // 토큰 갱신 실패 — 세션 만료 처리
             const savedId = localStorage.getItem(SAVED_ID_KEY)
             localStorage.clear()
             if (savedId) localStorage.setItem(SAVED_ID_KEY, savedId)

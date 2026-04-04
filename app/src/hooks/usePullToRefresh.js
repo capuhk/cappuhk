@@ -6,14 +6,18 @@ import { useEffect, useRef, useState } from 'react'
 export function usePullToRefresh(onRefresh, threshold = 70) {
   const [pullDistance, setPullDistance] = useState(0)
   const [refreshing, setRefreshing]     = useState(false)
-  const startY   = useRef(null)
-  const pulling  = useRef(false)
+  const startY        = useRef(null)
+  const pulling       = useRef(false)
+  // 이벤트 핸들러 클로저에서 사용하는 ref
+  // state를 deps에 넣으면 touchmove마다 리스너 재등록 → iOS touchend 누락 위험
+  const pullDistRef   = useRef(0)
+  const refreshingRef = useRef(false)
 
   useEffect(() => {
     const onTouchStart = (e) => {
       // 최상단에 있을 때만 pull 활성화
       if (window.scrollY === 0) {
-        startY.current = e.touches[0].clientY
+        startY.current  = e.touches[0].clientY
         pulling.current = true
       }
     }
@@ -25,7 +29,9 @@ export function usePullToRefresh(onRefresh, threshold = 70) {
         // passive: true이므로 preventDefault()는 브라우저가 무시 — 제거
         // 네이티브 오버스크롤은 CSS overscroll-behavior: none 으로 차단
         // 저항감 적용 — 많이 당길수록 점점 더 힘들게
-        setPullDistance(Math.min(delta * 0.5, threshold * 1.5))
+        const dist = Math.min(delta * 0.5, threshold * 1.5)
+        pullDistRef.current = dist
+        setPullDistance(dist)
       }
     }
 
@@ -33,16 +39,21 @@ export function usePullToRefresh(onRefresh, threshold = 70) {
       if (!pulling.current) return
       pulling.current = false
 
-      if (pullDistance >= threshold && !refreshing) {
+      // ref로 현재값 참조 — deps에서 제거해도 최신 값 보장
+      if (pullDistRef.current >= threshold && !refreshingRef.current) {
+        refreshingRef.current = true
         setRefreshing(true)
         setPullDistance(0)
+        pullDistRef.current = 0
         try {
           await onRefresh()
         } finally {
+          refreshingRef.current = false
           setRefreshing(false)
         }
       } else {
         setPullDistance(0)
+        pullDistRef.current = 0
       }
       startY.current = null
     }
@@ -57,7 +68,9 @@ export function usePullToRefresh(onRefresh, threshold = 70) {
       document.removeEventListener('touchmove',  onTouchMove)
       document.removeEventListener('touchend',   onTouchEnd)
     }
-  }, [onRefresh, pullDistance, refreshing, threshold])
+  // pullDistance, refreshing 제거 — touchmove마다 리스너 재등록 방지
+  // ref(pullDistRef, refreshingRef)로 최신 값 참조
+  }, [onRefresh, threshold])
 
   return { pullDistance, refreshing }
 }

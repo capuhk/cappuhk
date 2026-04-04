@@ -21,7 +21,9 @@ function App() {
     // → 토큰 갱신 fetch가 hanging 상태로 남아 모든 쿼리 대기
     // → Safari 자체 새로고침과 동일하게 강제 리로드로 해결
     let hiddenAt = null
-    const RELOAD_THRESHOLD_MS = 5 * 60 * 1000 // 5분
+    // 2분 이상 백그라운드 → 강제 리로드
+    // (5분 임계값은 정확히 5분이 아닌 경우 미발동 — 2분으로 하향)
+    const RELOAD_THRESHOLD_MS = 2 * 60 * 1000
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
