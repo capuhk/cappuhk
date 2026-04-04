@@ -97,7 +97,7 @@ export default function FacilityOrderFormPage() {
   const handleSubmit = async () => {
     // 객실 구분일 때만 객실번호 필수
     if (locationType === '객실' && !roomNo) { setError('객실번호를 선택해주세요.'); return }
-    if (!facilityType) { setError('시설 종류를 선택해주세요.'); return }
+    if (!facilityType) { setError('오더 종류를 선택해주세요.'); return }
 
     setSaving(true)
     setError(null)
@@ -206,48 +206,22 @@ export default function FacilityOrderFormPage() {
     <div>
       <div className="px-4 pt-6 pb-48 space-y-6">
 
-        {/* 구분 — 객실 / 공용부 / 시설 */}
+        {/* 오더 종류 — 상단 배치, 선택 시 객실번호 표시 여부 결정 */}
+        {/* "공용부" 또는 "시설" 선택 시 객실번호 숨김 */}
         <section>
-          <label className="block text-sm text-white/50 mb-2">구분 *</label>
-          <div className="flex gap-2">
-            {['객실', '공용부', '시설'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => {
-                  setLocationType(type)
-                  // 객실 외 선택 시 객실번호 초기화
-                  if (type !== '객실') setRoomNo(null)
-                }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
-                  locationType === type
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white/10 text-white/50 hover:bg-white/15'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* 객실번호 — 객실 구분일 때만 표시 */}
-        {locationType === '객실' && (
-          <section>
-            <label className="block text-sm text-white/50 mb-2">객실번호 *</label>
-            <RoomPicker value={roomNo} onChange={setRoomNo} />
-          </section>
-        )}
-
-        {/* 시설 종류 — 토글 버튼 */}
-        <section>
-          <label className="block text-sm text-white/50 mb-2">시설 종류 *</label>
+          <label className="block text-sm text-white/50 mb-2">오더 종류 *</label>
           <div className="flex flex-wrap gap-2">
             {facilityTypes.map((ft) => (
               <button
                 key={ft.id}
                 type="button"
-                onClick={() => setFacilityType({ id: ft.id, name: ft.name })}
+                onClick={() => {
+                  setFacilityType({ id: ft.id, name: ft.name })
+                  // 공용부·시설 선택 시 객실번호 초기화 + location_type 갱신
+                  const noRoom = ft.name === '공용부' || ft.name === '시설'
+                  setLocationType(noRoom ? ft.name : '객실')
+                  if (noRoom) setRoomNo(null)
+                }}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
                   facilityType?.id === ft.id
                     ? 'bg-blue-500 text-white'
@@ -258,10 +232,18 @@ export default function FacilityOrderFormPage() {
               </button>
             ))}
             {facilityTypes.length === 0 && (
-              <p className="text-sm text-white/30">시설 종류 데이터가 없습니다.</p>
+              <p className="text-sm text-white/30">오더 종류 데이터가 없습니다.</p>
             )}
           </div>
         </section>
+
+        {/* 객실번호 — 공용부·시설 선택 시 숨김 */}
+        {locationType === '객실' && (
+          <section>
+            <label className="block text-sm text-white/50 mb-2">객실번호 *</label>
+            <RoomPicker value={roomNo} onChange={setRoomNo} />
+          </section>
+        )}
 
         {/* 긴급오더 */}
         <section>

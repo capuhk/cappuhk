@@ -878,7 +878,7 @@ export default function SettingsPage() {
         ════════════════════════════════════════ */}
         <div className={activeTab !== 'master' ? 'hidden' : 'space-y-6'}>
           <StatusSortableEditor />
-          <MasterDataEditor title="시설 종류 관리" tableName="facility_types" />
+          <MasterDataEditor title="오더 종류 관리" tableName="facility_types" />
           <MasterDataEditor title="객실하자 구분 관리" tableName="defect_divisions" />
           <MasterDataEditor
             title="객실하자 위치 관리"
