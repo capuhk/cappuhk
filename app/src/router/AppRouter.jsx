@@ -80,16 +80,16 @@ function AppRouter() {
 
       {/* 사이드메뉴 */}
       <Route path="/inspection-review"    element={<ProtectedRoute><InspectionReviewPage /></ProtectedRoute>} />
-      <Route path="/notice"               element={<ProtectedRoute><NoticeListPage /></ProtectedRoute>} />
-      <Route path="/notice/new"           element={<ProtectedRoute><NoticeFormPage /></ProtectedRoute>} />
-      <Route path="/notice/:id"           element={<ProtectedRoute><NoticeDetailPage /></ProtectedRoute>} />
-      <Route path="/notice/:id/edit"      element={<ProtectedRoute><NoticeFormPage /></ProtectedRoute>} />
+      <Route path="/notice"               element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeListPage /></ProtectedRoute>} />
+      <Route path="/notice/new"           element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeFormPage /></ProtectedRoute>} />
+      <Route path="/notice/:id"           element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeDetailPage /></ProtectedRoute>} />
+      <Route path="/notice/:id/edit"      element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeFormPage /></ProtectedRoute>} />
       <Route path="/staff"                element={<ProtectedRoute><StaffListPage /></ProtectedRoute>} />
       <Route path="/staff/:id"            element={<ProtectedRoute><StaffDetailPage /></ProtectedRoute>} />
       <Route path="/dashboard"            element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
 
       {/* 설정 */}
-      <Route path="/settings"                    element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/settings"                    element={<ProtectedRoute excludeRoles={['houseman','front']}><SettingsPage /></ProtectedRoute>} />
       <Route path="/settings/users/new"          element={<ProtectedRoute><UserFormPage /></ProtectedRoute>} />
       <Route path="/settings/users/:id/edit"     element={<ProtectedRoute><UserFormPage /></ProtectedRoute>} />
 

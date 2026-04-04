@@ -6,7 +6,7 @@ import useAuthStore from '../../store/useAuthStore'
 const FAB_CONFIG = {
   '/inspection':     { to: '/inspection/new',      roles: ['admin', 'manager', 'supervisor', 'maid'] },
   '/defect':         { to: '/defect/new',           roles: ['admin', 'manager', 'supervisor', 'maid'] },
-  '/facility-order': { to: '/facility-order/new',   roles: ['admin', 'manager', 'supervisor', 'facility'] },
+  '/facility-order': { to: '/facility-order/new',   roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'] },
   '/notice':         { to: '/notice/new',           roles: ['admin', 'manager', 'supervisor'] },
   '/staff':          { to: '/settings/users/new',   roles: ['admin', 'manager', 'supervisor'] },
 }

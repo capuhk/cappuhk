@@ -11,6 +11,8 @@ const ROLE_LABEL = {
   supervisor: '주임',
   maid:       '메이드',
   facility:   '시설',
+  houseman:   '하우스맨',
+  front:      '프론트',
 }
 
 const ROLE_COLOR = {
@@ -19,6 +21,8 @@ const ROLE_COLOR = {
   supervisor: 'bg-blue-500/20 text-blue-400',
   maid:       'bg-zinc-500/20 text-zinc-400',
   facility:   'bg-emerald-500/20 text-emerald-400',
+  houseman:   'bg-orange-500/20 text-orange-400',
+  front:      'bg-cyan-500/20 text-cyan-400',
 }
 
 export default function StaffDetailPage() {

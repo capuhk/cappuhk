@@ -25,17 +25,17 @@ const MAIN_TABS = [
     path: '/facility-order',
     label: '시설오더',
     Icon: Wrench,
-    roles: ['admin', 'manager', 'supervisor', 'facility'],
+    roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'],
   },
 ]
 
 // 사이드 메뉴 항목 — managerOnly: 관리자·소장·주임만 표시 / excludeRoles: 해당 역할 제외
 const MENU_ITEMS = [
   { path: '/inspection-review', label: '인스펙션조회', Icon: FileSearch, managerOnly: true },
-  { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false },
+  { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false, excludeRoles: ['houseman', 'front'] },
   { path: '/staff',             label: '직원목록',     Icon: Users,      managerOnly: false },
   { path: '/dashboard',         label: '통계/대시보드', Icon: BarChart2,  managerOnly: true },
-  { path: '/settings',          label: '설정',         Icon: Settings,   managerOnly: false },
+  { path: '/settings',          label: '설정',         Icon: Settings,   managerOnly: false, excludeRoles: ['houseman', 'front'] },
 ]
 
 export default function SideMenu({ open, onClose }) {

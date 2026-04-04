@@ -11,6 +11,8 @@ const ROLES = [
   { value: 'supervisor', label: '주임' },
   { value: 'maid',       label: '메이드' },
   { value: 'facility',   label: '시설' },
+  { value: 'houseman',   label: '하우스맨' },
+  { value: 'front',      label: '프론트' },
 ]
 
 export default function UserFormPage() {

@@ -11,6 +11,8 @@ const ROLE_LABEL = {
   supervisor: '주임',
   maid:       '메이드',
   facility:   '시설',
+  houseman:   '하우스맨',
+  front:      '프론트',
 }
 
 // 역할별 뱃지 색상
@@ -20,10 +22,12 @@ const ROLE_COLOR = {
   supervisor: 'bg-blue-500/20 text-blue-400',
   maid:       'bg-zinc-500/20 text-zinc-400',
   facility:   'bg-emerald-500/20 text-emerald-400',
+  houseman:   'bg-orange-500/20 text-orange-400',
+  front:      'bg-cyan-500/20 text-cyan-400',
 }
 
 // 역할 정렬 우선순위
-const ROLE_ORDER = { admin: 0, manager: 1, supervisor: 2, maid: 3, facility: 4 }
+const ROLE_ORDER = { admin: 0, manager: 1, supervisor: 2, maid: 3, facility: 4, houseman: 5, front: 6 }
 
 export default function StaffListPage() {
   const navigate = useNavigate()

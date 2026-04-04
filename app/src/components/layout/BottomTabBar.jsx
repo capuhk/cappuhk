@@ -20,7 +20,7 @@ const TABS = [
     path: '/facility-order',
     label: '시설오더',
     Icon: Wrench,
-    roles: ['admin', 'manager', 'supervisor', 'facility'],
+    roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'],
   },
 ]
 
