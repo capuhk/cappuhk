@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-03 (전체 아키텍처 버그 리뷰 — Phase A/B/C 수정)
-> **버전**: v4.2 (v4.1 + SPA fallback·send-push CORS·인스펙션조회 정렬·로그인 깜빡임·PTR·데이터 안정성·코드품질)
+> **최종 업데이트**: 2026-04-04 (iOS 무한스피너 근본 수정 · FAB safe-area 수정)
+> **버전**: v4.3 (v4.2 + iOS 무한스피너 3종 수정 + FAB 위치 수정)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -2022,3 +2022,4 @@ $$ LANGUAGE SQL STABLE;
 | v4.0 | 2026-04-02 | 모바일 UX 고도화 — viewport-fit=cover 안전영역, BottomTabBar safe area, 폼 저장 버튼 --form-btn-bottom CSS 변수(5개 폼), SW Supabase REST NetworkOnly(iOS Safari AbortController 무한스피닝 수정), 시설오더·객실하자 엑셀·PDF 출력(exportUtils.js), 대시보드 완료 탭 추가(today 완료 인스펙션), 시설오더 기본필터 All 변경 |
 | v4.1 | 2026-04-02 | PWA 브랜딩 — 카푸치노 호텔 로고 자동 크롭·리사이즈로 pwa-192x192.png·pwa-512x512.png·apple-touch-icon.png·favicon.svg 교체, index.html 타이틀 Cappuccino Hotel 변경 |
 | v4.2 | 2026-04-03 | 전체 아키텍처 버그 리뷰 3단계 완료 — [A] vercel.json SPA rewrite(새로고침 404), send-push CORS(VAPID 초기화 위치), overscroll-behavior-y:none(PTR 충돌), 인스펙션조회 정렬 내림차순, 로그인 step null(깜빡임) [B] 이미지 삭제 에러체크 3폼, 대시보드 완료쿼리 에러체크, useNotificationStore created_at undefined 방어 [C] RoomPicker sort_order null, ImageUploader join 의존성, useAuthStore static import, SettingsPage alert→toast 전환 |
+| v4.3 | 2026-04-04 | iOS 무한스피너 근본 수정 — [1] useAuthStore.init() INITIAL_SESSION 이벤트 → getSession() 직접 호출(내부 네트워크 hanging 제거) [2] usePullToRefresh deps에서 pullDistance/refreshing 제거→ref 사용(touchmove마다 리스너 재등록→iOS touchend 누락 방지) [3] visibilitychange 임계값 5분→2분(정확히 5분 미만 미발동 방지) [4] FAB bottom에 env(safe-area-inset-bottom) 추가(홈화면 PWA 탭바 겹침 수정) |
