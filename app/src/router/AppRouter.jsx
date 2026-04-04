@@ -80,10 +80,10 @@ function AppRouter() {
 
       {/* 사이드메뉴 */}
       <Route path="/inspection-review"    element={<ProtectedRoute><InspectionReviewPage /></ProtectedRoute>} />
-      <Route path="/notice"               element={<ProtectedRoute excludeRoles={['facility']}><NoticeListPage /></ProtectedRoute>} />
-      <Route path="/notice/new"           element={<ProtectedRoute excludeRoles={['facility']}><NoticeFormPage /></ProtectedRoute>} />
-      <Route path="/notice/:id"           element={<ProtectedRoute excludeRoles={['facility']}><NoticeDetailPage /></ProtectedRoute>} />
-      <Route path="/notice/:id/edit"      element={<ProtectedRoute excludeRoles={['facility']}><NoticeFormPage /></ProtectedRoute>} />
+      <Route path="/notice"               element={<ProtectedRoute><NoticeListPage /></ProtectedRoute>} />
+      <Route path="/notice/new"           element={<ProtectedRoute><NoticeFormPage /></ProtectedRoute>} />
+      <Route path="/notice/:id"           element={<ProtectedRoute><NoticeDetailPage /></ProtectedRoute>} />
+      <Route path="/notice/:id/edit"      element={<ProtectedRoute><NoticeFormPage /></ProtectedRoute>} />
       <Route path="/staff"                element={<ProtectedRoute><StaffListPage /></ProtectedRoute>} />
       <Route path="/staff/:id"            element={<ProtectedRoute><StaffDetailPage /></ProtectedRoute>} />
       <Route path="/dashboard"            element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

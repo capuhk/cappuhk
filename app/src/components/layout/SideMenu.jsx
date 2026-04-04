@@ -32,7 +32,7 @@ const MAIN_TABS = [
 // 사이드 메뉴 항목 — managerOnly: 관리자·소장·주임만 표시 / excludeRoles: 해당 역할 제외
 const MENU_ITEMS = [
   { path: '/inspection-review', label: '인스펙션조회', Icon: FileSearch, managerOnly: true },
-  { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false, excludeRoles: ['facility'] },
+  { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false },
   { path: '/staff',             label: '직원목록',     Icon: Users,      managerOnly: false },
   { path: '/dashboard',         label: '통계/대시보드', Icon: BarChart2,  managerOnly: true },
   { path: '/settings',          label: '설정',         Icon: Settings,   managerOnly: false },
