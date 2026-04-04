@@ -100,7 +100,11 @@ export default function DefectListPage() {
     if (q) {
       list = list.filter((r) =>
         r.room_no.includes(q) ||
-        (r.users?.name || '').includes(q)
+        (r.users?.name  || '').includes(q) ||
+        (r.division     || '').includes(q) ||
+        (r.location     || '').includes(q) ||
+        (r.category     || '').includes(q) ||
+        (r.memo         || '').includes(q)
       )
     }
     return list
@@ -168,7 +172,7 @@ export default function DefectListPage() {
           <Search size={16} className="text-white/40 shrink-0" />
           <input
             type="text"
-            placeholder="객실번호 또는 작성자 검색"
+            placeholder="객실번호·작성자·구분·위치·분류·내용 검색"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 bg-transparent text-white text-sm placeholder:text-white/30 outline-none"

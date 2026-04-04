@@ -389,7 +389,10 @@ export default function FacilityOrderDetailPage() {
       <div className="px-4 pt-6 pb-6 space-y-4">
         {/* 객실번호 + 상태 + 긴급 뱃지 */}
         <div className="flex items-center gap-3">
-          <span className="text-2xl font-bold text-white">{record.room_no}</span>
+          {/* room_no 없으면(공용부·시설) location_type 표시 */}
+          <span className="text-2xl font-bold text-white">
+            {record.room_no || record.location_type || ''}
+          </span>
           {record.is_urgent && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">
               🚨 긴급

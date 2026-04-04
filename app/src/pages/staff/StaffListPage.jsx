@@ -111,21 +111,31 @@ export default function StaffListPage() {
                 )}
               </div>
 
-              {/* 이메일 / 전화 아이콘 행 */}
-              <div className="flex items-center gap-3 text-xs text-white/35">
-                {staff.email && !staff.email.includes('@hk.internal') && (
-                  <span className="flex items-center gap-1 truncate">
-                    <Mail size={11} />
-                    {staff.email}
-                  </span>
-                )}
-                {staff.phone && (
-                  <span className="flex items-center gap-1 shrink-0">
-                    <Phone size={11} />
-                    {staff.phone}
-                  </span>
-                )}
-              </div>
+              {/* 전화·문자 아이콘 버튼 (번호 텍스트 미표시) */}
+              {staff.phone && (
+                <div className="flex items-center gap-2 mt-1">
+                  {/* 전화 걸기 */}
+                  <a
+                    href={`tel:${staff.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-7 h-7 rounded-full
+                      bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
+                    aria-label={`${staff.name}에게 전화`}
+                  >
+                    <Phone size={13} />
+                  </a>
+                  {/* 문자 보내기 */}
+                  <a
+                    href={`sms:${staff.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-7 h-7 rounded-full
+                      bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                    aria-label={`${staff.name}에게 문자`}
+                  >
+                    <Mail size={13} />
+                  </a>
+                </div>
+              )}
             </div>
 
             <span className="text-white/20 text-lg shrink-0">›</span>

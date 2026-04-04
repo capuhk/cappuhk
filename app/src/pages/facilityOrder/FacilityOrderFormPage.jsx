@@ -20,6 +20,8 @@ export default function FacilityOrderFormPage() {
   const [facilityTypes, setFacilityTypes] = useState([])
 
   // ── 폼 필드 ───────────────────────────────────
+  // 구분: 객실 선택 시 객실번호 필수 / 공용부·시설 선택 시 선택사항
+  const [locationType, setLocationType]   = useState('객실')
   const [roomNo, setRoomNo]               = useState(null)
   // 선택된 시설종류 객체 { id, name }
   const [facilityType, setFacilityType]   = useState(null)
@@ -63,6 +65,7 @@ export default function FacilityOrderFormPage() {
         return
       }
 
+      setLocationType(data.location_type || '객실')
       setRoomNo(data.room_no)
       setIsUrgent(data.is_urgent || false)
       // 스냅샷 이름으로 기존 타입 복원
@@ -92,7 +95,8 @@ export default function FacilityOrderFormPage() {
 
   // ── 저장 ─────────────────────────────────────
   const handleSubmit = async () => {
-    if (!roomNo) { setError('객실번호를 선택해주세요.'); return }
+    // 객실 구분일 때만 객실번호 필수
+    if (locationType === '객실' && !roomNo) { setError('객실번호를 선택해주세요.'); return }
     if (!facilityType) { setError('시설 종류를 선택해주세요.'); return }
 
     setSaving(true)
@@ -105,7 +109,8 @@ export default function FacilityOrderFormPage() {
         const { error: upErr } = await supabase
           .from('facility_orders')
           .update({
-            room_no:            roomNo,
+            location_type:      locationType,
+            room_no:            locationType === '객실' ? roomNo : null,
             facility_type_id:   facilityType.id,
             facility_type_name: facilityType.name,
             note:               note.trim() || null,
@@ -139,7 +144,8 @@ export default function FacilityOrderFormPage() {
         const { data: foData, error: foErr } = await supabase
           .from('facility_orders')
           .insert({
-            room_no:            roomNo,
+            location_type:      locationType,
+            room_no:            locationType === '객실' ? roomNo : null,
             facility_type_id:   facilityType.id,
             facility_type_name: facilityType.name,
             note:               note.trim() || null,
@@ -164,9 +170,11 @@ export default function FacilityOrderFormPage() {
         }
 
         // 신규 등록 시 시설 담당자에게 푸시 발송
+        // 공용부·시설 구분은 room_no 없으므로 location_type 표시
+        const pushLocation = locationType === '객실' ? roomNo : locationType
         sendPush({
           roles: ['facility'],
-          title: `[${roomNo}] 시설오더 — ${facilityType.name}`,
+          title: `[${pushLocation}] 시설오더 — ${facilityType.name}`,
           body:  note.trim() || '',
           url:   `/facility-order/${foData.id}`,
         })
@@ -198,11 +206,38 @@ export default function FacilityOrderFormPage() {
     <div>
       <div className="px-4 pt-6 pb-48 space-y-6">
 
-        {/* 객실번호 */}
+        {/* 구분 — 객실 / 공용부 / 시설 */}
         <section>
-          <label className="block text-sm text-white/50 mb-2">객실번호 *</label>
-          <RoomPicker value={roomNo} onChange={setRoomNo} />
+          <label className="block text-sm text-white/50 mb-2">구분 *</label>
+          <div className="flex gap-2">
+            {['객실', '공용부', '시설'].map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => {
+                  setLocationType(type)
+                  // 객실 외 선택 시 객실번호 초기화
+                  if (type !== '객실') setRoomNo(null)
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+                  locationType === type
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/10 text-white/50 hover:bg-white/15'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
         </section>
+
+        {/* 객실번호 — 객실 구분일 때만 표시 */}
+        {locationType === '객실' && (
+          <section>
+            <label className="block text-sm text-white/50 mb-2">객실번호 *</label>
+            <RoomPicker value={roomNo} onChange={setRoomNo} />
+          </section>
+        )}
 
         {/* 시설 종류 — 토글 버튼 */}
         <section>
@@ -312,7 +347,7 @@ export default function FacilityOrderFormPage() {
           bg-gradient-to-t from-zinc-950 via-zinc-950/95 to-transparent">
           <button
             onClick={handleSubmit}
-            disabled={saving || !roomNo || !facilityType}
+            disabled={saving || (locationType === '객실' && !roomNo) || !facilityType}
             className="w-full py-4 rounded-2xl bg-blue-600 text-white text-base font-semibold
               hover:bg-blue-500 active:scale-[0.98] transition-all
               disabled:opacity-40 disabled:cursor-not-allowed

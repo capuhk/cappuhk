@@ -57,7 +57,7 @@ export default function FacilityOrderListPage() {
       try {
         const { data, error } = await supabase
           .from('facility_orders')
-          .select('id, room_no, facility_type_name, note, status, is_urgent, work_date, created_at, users!author_id(name)')
+          .select('id, room_no, location_type, facility_type_name, note, status, is_urgent, work_date, created_at, users!author_id(name)')
           .gte('work_date', dateFrom)
           .lte('work_date', dateTo)
           .order('work_date', { ascending: false })
@@ -359,7 +359,9 @@ export default function FacilityOrderListPage() {
                               {record.is_urgent && (
                                 <span className="text-xs text-red-400 shrink-0">🚨</span>
                               )}
-                              <span className="text-base font-bold text-white">{record.room_no}</span>
+                              <span className="text-base font-bold text-white">
+                                {record.room_no || record.location_type || ''}
+                              </span>
                               <span className="text-sm text-white/60 truncate">{record.facility_type_name}</span>
                               <span className={`ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status] || 'bg-zinc-500/30 text-zinc-300'}`}>
                                 {record.status}

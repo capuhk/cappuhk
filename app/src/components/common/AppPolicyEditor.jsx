@@ -148,6 +148,7 @@ export default function AppPolicyEditor() {
             <RadioGroup
               policyKey="inspection_default_status"
               options={[
+                { label: '완료',      value: '완료' },
                 { label: '환기중',    value: '환기중' },
                 { label: '진행중',    value: '진행중' },
                 { label: '선택 안 함', value: '' },
