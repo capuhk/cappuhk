@@ -1,7 +1,7 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-04 (iOS 무한스피너 근본 수정 · FAB safe-area 수정)
+> **최종 업데이트**: 2026-04-04 (iOS 무한스피너 근본 수정 확인 완료)
 > **버전**: v4.3 (v4.2 + iOS 무한스피너 3종 수정 + FAB 위치 수정)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
@@ -256,6 +256,30 @@
 | 잠금 해제 | 관리자·소장·주임만 가능 |
 | 세션 유지 | Supabase JWT 자동 갱신 |
 | PIN 최소 길이 | Supabase Dashboard > Authentication > Password > Minimum length = 4 (1회 설정) |
+
+### 5.6 iOS Safari 백그라운드 복귀 무한스피너 해결 (v4.3 확인 완료)
+
+**원인:**
+```
+iOS Safari 앱 백그라운드 2~5분
+    └→ Supabase JS 클라이언트: autoRefreshToken 내부 타이머로 토큰 갱신 시도
+        └→ iOS가 JS를 freeze 상태로 중단
+            └→ 앱 복귀 시 freeze 해제 → 타이머 즉시 발동
+                └→ 토큰 갱신 fetch 요청 시작
+                    └→ 네트워크 아직 준비 안 됨 (iOS 복귀 직후)
+                        └→ fetch hanging → 이후 모든 Supabase 쿼리 무한 대기 → 스피너
+```
+
+**해결 3가지 (파일: App.jsx, useAuthStore.js, usePullToRefresh.js):**
+
+| # | 파일 | 수정 내용 |
+|---|------|----------|
+| 1 | `useAuthStore.js` | `onAuthStateChange INITIAL_SESSION` → `getSession()` 직접 호출. 유효 토큰이면 localStorage 즉시 반환 (네트워크 불필요) |
+| 2 | `App.jsx` | `visibilitychange` 2분 이상 백그라운드 감지 → `window.location.reload()` (Supabase 클라이언트 상태 강제 초기화) |
+| 3 | `usePullToRefresh.js` | deps에서 `pullDistance, refreshing` 제거 → ref 사용. touchmove마다 리스너 재등록 방지 (iOS touchend 누락 방지) |
+
+> ⚠️ **주의**: 향후 auth 관련 수정 시 `getSession()` 기반 패턴 유지. `onAuthStateChange`는 `TOKEN_REFRESHED`, `SIGNED_OUT` 이벤트만 처리.
+> `INITIAL_SESSION` 이벤트 방식으로 되돌리면 동일 문제 재발.
 
 ---
 
@@ -2005,6 +2029,83 @@ $$ LANGUAGE SQL STABLE;
 ---
 
 *설계서 끝 — 구현 지시 시 Phase 1부터 순차 진행*
+
+---
+
+## 20. 코드 구성 주의사항 (트러블슈팅 기반)
+
+실제 운영 중 발생한 버그를 기반으로 도출한 주의사항. 향후 코드 수정 시 반드시 참고.
+
+---
+
+### 20.1 iOS Safari PWA — Supabase Auth 초기화
+
+**왜 발생했나:**
+- Supabase JS 클라이언트는 `autoRefreshToken: true` 옵션으로 내부 타이머를 설정해 자동으로 토큰을 갱신함
+- iOS Safari는 앱이 백그라운드로 가면 JS 실행을 freeze 상태로 중단함
+- 앱 복귀 시 freeze 해제 → 멈췄던 타이머가 즉시 발동 → 토큰 갱신 fetch 요청
+- 이 시점에 iOS 네트워크가 아직 준비되지 않아 fetch가 hanging 상태로 멈춤
+- Supabase 클라이언트는 내부 큐 방식이라 이 hanging fetch가 해소될 때까지 이후 모든 쿼리가 대기
+- 결과: 페이지 데이터 fetch 무한 대기 → 스피너가 멈추지 않음
+
+**주의사항:**
+```
+✅ 세션 초기화는 getSession() 직접 호출 사용
+   - 유효 토큰이면 localStorage에서 즉시 반환 (네트워크 요청 없음)
+   - 토큰 만료 시에만 네트워크 요청 발생
+
+❌ onAuthStateChange의 INITIAL_SESSION 이벤트로 세션 초기화 금지
+   - 이벤트 내부에서 네트워크 요청이 발생할 수 있음
+   - iOS 복귀 직후 네트워크 미준비 시 hanging 위험
+
+✅ onAuthStateChange는 TOKEN_REFRESHED, SIGNED_OUT만 처리
+   - 진행 중인 세션 변경(토큰 갱신 성공/실패, 로그아웃)만 감지용으로 사용
+
+✅ visibilitychange로 2분 이상 백그라운드 감지 → window.location.reload()
+   - Supabase 클라이언트 인스턴스를 완전히 소멸시켜 hanging 상태 초기화
+   - 세션은 localStorage에 보존되므로 리로드 후 자동 로그인 유지
+```
+
+---
+
+### 20.2 iOS Safari — 이벤트 리스너 deps 관리
+
+**왜 발생했나:**
+- `usePullToRefresh`의 `useEffect` deps 배열에 `pullDistance`, `refreshing` state가 포함되어 있었음
+- 터치 중 `setPullDistance()`가 호출될 때마다 state가 변경 → `useEffect` 재실행
+- `useEffect` 재실행 = 기존 이벤트 리스너 `removeEventListener` + 새 리스너 `addEventListener` 반복
+- iOS Safari에서 `touchmove` 중 리스너 교체 타이밍과 `touchend` 이벤트가 겹치면 `touchend` 누락 가능
+
+**주의사항:**
+```
+✅ 이벤트 핸들러 내에서 사용하는 값은 useRef로 관리
+   - state 변경이 useEffect 재실행을 유발하지 않도록
+   - ref.current로 최신 값 참조 (클로저 stale 값 문제 해결)
+
+❌ 이벤트 리스너 useEffect deps에 자주 변경되는 state 포함 금지
+   - pullDistance, refreshing 같은 실시간 변경 state는 deps 제외
+   - 리스너 재등록 빈도가 높으면 iOS에서 이벤트 누락 위험
+
+✅ 안정적인 deps만 포함: onRefresh(useCallback으로 메모이제이션), threshold(상수)
+```
+
+---
+
+### 20.3 Supabase 쿼리 — 모바일 무한스피너 방지
+
+**주의사항:**
+```
+✅ 모든 목록/상세 페이지의 fetch useEffect에 AbortController + 타임아웃 필수
+   const controller = new AbortController()
+   const timeoutId = setTimeout(() => controller.abort(), 10000)
+   .abortSignal(controller.signal)
+
+❌ AbortController 없는 fetch는 네트워크 불안정 시 무한 대기
+   - 특히 모바일에서 백그라운드 복귀 후 첫 요청이 hanging될 수 있음
+
+✅ finally 블록에서 setLoading(false) 반드시 호출
+   - try/catch에서 에러가 나도 loading 상태 해제 보장
+```
 
 ---
 
