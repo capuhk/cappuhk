@@ -8,7 +8,7 @@ import useRefreshStore from '../../store/useRefreshStore'
 
 export default function NoticeListPage() {
   const navigate = useNavigate()
-  const { isManager } = useAuthStore()
+  const { user, isManager } = useAuthStore()
   // 헤더 🔄 버튼 트리거 — 변경 시 데이터 재조회
   const refreshKey = useRefreshStore((s) => s.refreshKey)
 
@@ -22,14 +22,22 @@ export default function NoticeListPage() {
       const { data, error } = await supabase
         .from('notices')
         .select(`
-          id, title, content, is_pinned, created_at,
+          id, title, content, is_pinned, target_roles, created_at,
           author:users!author_id(name)
         `)
         // 공지 상단 고정 → is_pinned DESC, 최신순
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false })
 
-      if (!error) setNotices(data || [])
+      if (!error) {
+        // 관리자(소장/주임 포함)는 전체 조회, 그 외는 공개 대상 필터 적용
+        const filtered = isManager()
+          ? (data || [])
+          : (data || []).filter((n) =>
+              !n.target_roles?.length || n.target_roles.includes(user?.role)
+            )
+        setNotices(filtered)
+      }
       setLoading(false)
     }
 

@@ -29,7 +29,7 @@ export default function NoticeDetailPage() {
     const { data, error } = await supabase
       .from('notices')
       .select(`
-        *,
+        id, is_pinned, title, content, target_roles, created_at, updated_by,
         notice_images(id, thumb_path, sort_order),
         author:users!author_id(name),
         updater:users!updated_by(name)
@@ -40,6 +40,16 @@ export default function NoticeDetailPage() {
     if (error || !data) {
       navigate('/notice', { replace: true })
       return
+    }
+
+    // 공개 대상에 포함되지 않은 역할이면 목록으로 리다이렉트
+    // 관리자(소장/주임 포함)는 항상 접근 가능
+    if (!isManager()) {
+      const tr = data.target_roles || []
+      if (tr.length > 0 && !tr.includes(user?.role)) {
+        navigate('/notice', { replace: true })
+        return
+      }
     }
 
     setRecord(data)

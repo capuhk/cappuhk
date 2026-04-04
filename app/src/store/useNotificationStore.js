@@ -50,11 +50,11 @@ const useNotificationStore = create((set, get) => ({
   loading:     false,
 
   // ── 드로어 열기 ───────────────────────────────
-  openDrawer: async (userId, isManager) => {
+  openDrawer: async (userId, isManager, userRole) => {
     set({ drawerOpen: true })
     // 항목이 없으면 로드, 있으면 그대로 표시
     if (get().items.length === 0) {
-      await get()._fetchItems(userId, isManager)
+      await get()._fetchItems(userId, isManager, userRole)
     }
   },
 
@@ -62,25 +62,30 @@ const useNotificationStore = create((set, get) => ({
   closeDrawer: () => set({ drawerOpen: false }),
 
   // ── 항목 새로고침 (드로어 안에서 수동 재조회) ───
-  refreshItems: async (userId, isManager) => {
-    await get()._fetchItems(userId, isManager)
+  refreshItems: async (userId, isManager, userRole) => {
+    await get()._fetchItems(userId, isManager, userRole)
   },
 
   // ── 항목 로드 (내부) ──────────────────────────
-  _fetchItems: async (userId, isManager) => {
+  _fetchItems: async (userId, isManager, userRole) => {
     set({ loading: true })
 
     const initTime = getInitTime(userId)
     const items    = []
 
-    // 공지사항 최근 20개
-    const { data: notices } = await supabase
+    // 공지사항 최근 20개 — target_roles 포함 조회
+    const { data: noticeData } = await supabase
       .from('notices')
-      .select('id, title, created_at')
+      .select('id, title, target_roles, created_at')
       .order('created_at', { ascending: false })
       .limit(20)
 
-    for (const n of notices || []) {
+    // 관리자는 전체, 그 외는 공개 대상 필터 적용
+    const notices = (noticeData || []).filter((n) =>
+      isManager || !n.target_roles?.length || n.target_roles.includes(userRole)
+    )
+
+    for (const n of notices) {
       items.push({
         id:         `notice_${n.id}`,
         rawId:      n.id,
@@ -126,19 +131,24 @@ const useNotificationStore = create((set, get) => ({
   },
 
   // ── 앱 초기 뱃지 카운트만 계산 (드로어 미열어도 표시) ──
-  initBadge: async (userId, isManager) => {
+  initBadge: async (userId, isManager, userRole) => {
     const initTime = getInitTime(userId)
     const readIds  = loadReadIds(userId)
     let unread = 0
 
-    const { data: notices } = await supabase
+    // target_roles 포함 조회 후 클라이언트 필터
+    const { data: noticeData } = await supabase
       .from('notices')
-      .select('id, created_at')
+      .select('id, target_roles, created_at')
       .gt('created_at', initTime)
       .order('created_at', { ascending: false })
       .limit(20)
 
-    for (const n of notices || []) {
+    const notices = (noticeData || []).filter((n) =>
+      isManager || !n.target_roles?.length || n.target_roles.includes(userRole)
+    )
+
+    for (const n of notices) {
       if (!readIds.has(`notice_${n.id}`)) unread++
     }
 

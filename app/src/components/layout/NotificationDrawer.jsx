@@ -95,7 +95,7 @@ export default function NotificationDrawer() {
 
           {/* 새로고침 */}
           <button
-            onClick={() => userId && refreshItems(userId, isManager())}
+            onClick={() => userId && refreshItems(userId, isManager(), user?.role)}
             disabled={loading}
             className="w-8 h-8 flex items-center justify-center rounded-lg
               text-white/40 hover:text-white/70 hover:bg-white/10 transition-all"

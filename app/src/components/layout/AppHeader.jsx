@@ -25,7 +25,7 @@ export default function AppHeader({ title, isMainTab = false, onMenuClick }) {
 
   // 벨 클릭 → 드로어 열기 (항목 로드 포함)
   const handleBellClick = () => {
-    if (user) openDrawer(user.id, isManager())
+    if (user) openDrawer(user.id, isManager(), user.role)
   }
 
   return (

@@ -65,7 +65,7 @@ export default function MainLayout({ children }) {
   // 앱 첫 마운트 시 알림 뱃지 카운트 초기화
   useEffect(() => {
     if (user?.id) {
-      initBadge(user.id, isManager())
+      initBadge(user.id, isManager(), user.role)
     }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

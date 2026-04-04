@@ -65,6 +65,49 @@ export default function AppPolicyEditor() {
     return null
   }
 
+  // ── 체크박스 그룹 (역할 배열 정책용) ────────────
+  // value는 JSON 배열 문자열로 저장, ALWAYS_ON 역할은 항상 포함
+  const ALWAYS_ON = ['admin', 'manager', 'supervisor']
+  const CheckboxGroup = ({ policyKey, options }) => {
+    const current = (() => {
+      try { return JSON.parse(policies[policyKey] || '[]') } catch { return [] }
+    })()
+
+    const toggle = (role) => {
+      // ALWAYS_ON 역할은 토글 불가
+      if (ALWAYS_ON.includes(role)) return
+      const next = current.includes(role)
+        ? current.filter((r) => r !== role)
+        : [...current, role]
+      // ALWAYS_ON은 항상 포함 보장
+      const merged = [...new Set([...ALWAYS_ON, ...next])]
+      handleChange(policyKey, JSON.stringify(merged))
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {options.map(({ label, value, disabled }) => {
+          const checked = current.includes(value)
+          return (
+            <button
+              key={value}
+              disabled={disabled}
+              onClick={() => toggle(value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                ${checked
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white/10 text-white/50 hover:bg-white/15'
+                }
+                ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   // ── 라디오 그룹 컴포넌트 ─────────────────────
   const RadioGroup = ({ policyKey, options }) => (
     <div className="flex flex-wrap gap-2">
@@ -239,6 +282,54 @@ export default function AppPolicyEditor() {
           <div className="pt-3 border-t border-white/8">
             <p className="text-sm text-white/70">객실하자 사진</p>
             <p className="text-xs text-white/25 mt-1">하자 삭제 시에만 함께 삭제 — 자동 삭제 없음</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 섹션 4: 게시판 권한 ─────────────────── */}
+      <section>
+        <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">
+          📋 게시판 권한
+        </h2>
+        <div className="bg-white/5 rounded-2xl px-4 py-4 space-y-4">
+          <p className="text-xs text-white/30">
+            관리자·소장·주임은 항상 접근·작성 가능합니다.
+          </p>
+
+          {/* 게시판 접근 가능 역할 */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-white/70 flex-1">게시판 접근 가능 역할</p>
+              <SaveIndicator policyKey="notice_read_roles" />
+            </div>
+            <CheckboxGroup
+              policyKey="notice_read_roles"
+              options={[
+                { value: 'admin',      label: '관리자', disabled: true },
+                { value: 'manager',    label: '소장',   disabled: true },
+                { value: 'supervisor', label: '주임',   disabled: true },
+                { value: 'maid',       label: '메이드', disabled: false },
+                { value: 'facility',   label: '시설',   disabled: false },
+              ]}
+            />
+          </div>
+
+          {/* 게시글 작성 가능 역할 */}
+          <div className="space-y-2 pt-3 border-t border-white/8">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-white/70 flex-1">게시글 작성 가능 역할</p>
+              <SaveIndicator policyKey="notice_write_roles" />
+            </div>
+            <CheckboxGroup
+              policyKey="notice_write_roles"
+              options={[
+                { value: 'admin',      label: '관리자', disabled: true },
+                { value: 'manager',    label: '소장',   disabled: true },
+                { value: 'supervisor', label: '주임',   disabled: true },
+                { value: 'maid',       label: '메이드', disabled: false },
+                { value: 'facility',   label: '시설',   disabled: false },
+              ]}
+            />
           </div>
         </div>
       </section>

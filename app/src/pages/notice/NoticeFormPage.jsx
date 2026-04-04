@@ -15,10 +15,14 @@ export default function NoticeFormPage() {
   const { user } = useAuthStore()
 
   // ── 폼 필드 ───────────────────────────────────────
-  const [isPinned, setIsPinned]   = useState(false)
-  const [title, setTitle]         = useState('')
-  const [content, setContent]     = useState('')
+  const [isPinned, setIsPinned]     = useState(false)
+  const [title, setTitle]           = useState('')
+  const [content, setContent]       = useState('')
   const [imagePaths, setImagePaths] = useState([])
+  // 공개 대상 (빈 배열 = 전체 공개)
+  const [targetRoles, setTargetRoles] = useState([])
+  // 운영 정책에서 접근 허용된 역할 (선택 옵션 목록)
+  const [selectableRoles, setSelectableRoles] = useState([])
 
   // ── 메타 (수정 모드) ──────────────────────────────
   const [authorName, setAuthorName]   = useState('')
@@ -29,6 +33,25 @@ export default function NoticeFormPage() {
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState(null)
+
+  // ── 운영 정책: 게시판 접근 허용 역할 로드 ────────
+  useEffect(() => {
+    const loadPolicy = async () => {
+      const { data } = await supabase
+        .from('app_policies')
+        .select('value')
+        .eq('key', 'notice_read_roles')
+        .single()
+      if (data) {
+        try {
+          const roles = JSON.parse(data.value || '[]')
+          // 관리자 3종은 항상 볼 수 있으므로 선택 옵션에서 제외
+          setSelectableRoles(roles.filter((r) => !['admin', 'manager', 'supervisor'].includes(r)))
+        } catch {}
+      }
+    }
+    loadPolicy()
+  }, [])
 
   // ── 등록 모드: 작성자명 세팅 ──────────────────────
   useEffect(() => {
@@ -43,7 +66,7 @@ export default function NoticeFormPage() {
       const { data, error: fetchErr } = await supabase
         .from('notices')
         .select(`
-          *,
+          id, is_pinned, title, content, target_roles, created_at,
           notice_images(id, thumb_path, sort_order),
           author:users!author_id(name),
           updater:users!updated_by(name)
@@ -59,6 +82,7 @@ export default function NoticeFormPage() {
       setIsPinned(data.is_pinned)
       setTitle(data.title)
       setContent(data.content)
+      setTargetRoles(data.target_roles || [])
       setAuthorName(data.author?.name || '')
       setCreatedAt(data.created_at)
       setUpdaterName(data.updater?.name || null)
@@ -87,10 +111,11 @@ export default function NoticeFormPage() {
         const { error: upErr } = await supabase
           .from('notices')
           .update({
-            is_pinned:  isPinned,
-            title:      title.trim(),
-            content:    content.trim(),
-            updated_by: user.id,
+            is_pinned:   isPinned,
+            title:       title.trim(),
+            content:     content.trim(),
+            target_roles: targetRoles,
+            updated_by:  user.id,
           })
           .eq('id', id)
 
@@ -115,10 +140,11 @@ export default function NoticeFormPage() {
         const { data: noticeData, error: insertErr } = await supabase
           .from('notices')
           .insert({
-            is_pinned: isPinned,
-            title:     title.trim(),
-            content:   content.trim(),
-            author_id: user.id,
+            is_pinned:    isPinned,
+            title:        title.trim(),
+            content:      content.trim(),
+            target_roles: targetRoles,
+            author_id:    user.id,
           })
           .select('id')
           .single()
@@ -135,10 +161,15 @@ export default function NoticeFormPage() {
           )
         }
 
-        // 공지(is_pinned=true) 신규 등록 시 주임·메이드·시설에게 푸시 발송
+        // 공지(is_pinned=true) 신규 등록 시 공개 대상 역할에 푸시 발송
         if (isPinned) {
+          // targetRoles 빈 배열 = 전체 공개 → 접근 가능 역할 모두에게 발송
+          // (supervisor는 항상 포함, selectableRoles는 정책에서 허용된 역할)
+          const pushRoles = targetRoles.length > 0
+            ? targetRoles
+            : ['supervisor', ...selectableRoles]
           sendPush({
-            roles: ['supervisor', 'maid', 'facility'],
+            roles: [...new Set(pushRoles)],
             title: '📌 공지 등록',
             body:  title.trim(),
             url:   `/notice/${noticeData.id}`,
@@ -197,6 +228,53 @@ export default function NoticeFormPage() {
             ))}
           </div>
         </section>
+
+        {/* 공개 대상 */}
+        {selectableRoles.length > 0 && (
+          <section>
+            <label className="block text-sm text-white/50 mb-2">공개 대상</label>
+            <div className="flex flex-wrap gap-2">
+              {/* 전체 버튼 */}
+              <button
+                type="button"
+                onClick={() => setTargetRoles([])}
+                className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+                  targetRoles.length === 0
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/10 text-white/50 hover:bg-white/15'
+                }`}
+              >
+                전체
+              </button>
+              {/* 역할별 토글 버튼 */}
+              {selectableRoles.map((role) => {
+                const LABEL = { maid: '메이드', facility: '시설', supervisor: '주임', houseman: '하우스맨', front: '프론트' }
+                const selected = targetRoles.includes(role)
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => {
+                      setTargetRoles((prev) =>
+                        selected ? prev.filter((r) => r !== role) : [...prev, role]
+                      )
+                    }}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+                      selected
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white/10 text-white/50 hover:bg-white/15'
+                    }`}
+                  >
+                    {LABEL[role] || role}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-white/25 mt-2">
+              관리자·소장·주임은 항상 볼 수 있습니다.
+            </p>
+          </section>
+        )}
 
         {/* 제목 */}
         <section>
