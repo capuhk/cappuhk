@@ -11,10 +11,11 @@ const MAX_COUNT = {
 }
 
 // 공용 이미지 업로더 컴포넌트
-// type     : 'inspections' | 'defects' | 'facilityOrders' | 'notices'
-// value    : string[]  — DB에 저장된 thumb_path 배열
-// onChange : (paths: string[]) => void  — 부모 폼에 전달
-export default function ImageUploader({ type, value = [], onChange }) {
+// type       : 'inspections' | 'defects' | 'facilityOrders' | 'notices'
+// value      : string[]  — DB에 저장된 thumb_path 배열
+// onChange   : (paths: string[]) => void  — 부모 폼에 전달
+// cameraOnly : true 시 카메라 직접 촬영만 허용 (사진첩·파일 선택 불가)
+export default function ImageUploader({ type, value = [], onChange, cameraOnly = false }) {
   const inputRef = useRef(null)
   const maxCount = MAX_COUNT[type]
 
@@ -200,12 +201,13 @@ export default function ImageUploader({ type, value = [], onChange }) {
           </button>
         )}
 
-        {/* 파일 input — 카메라·갤러리 선택 모두 허용 */}
+        {/* 파일 input — cameraOnly: 카메라 직접 촬영만 / 기본: 갤러리·파일 모두 허용 */}
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
           multiple
+          {...(cameraOnly ? { capture: 'environment' } : {})}
           className="hidden"
           onChange={handleFileChange}
         />

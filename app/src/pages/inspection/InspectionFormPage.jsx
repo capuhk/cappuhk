@@ -285,6 +285,7 @@ export default function InspectionFormPage() {
             type="inspections"
             value={imagePaths}
             onChange={setImagePaths}
+            cameraOnly
           />
         </section>
 
