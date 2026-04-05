@@ -62,6 +62,10 @@
     -webkit-text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
   }
+  /* iOS Safari: input/textarea 포커스 시 자동 줌 방지 (font-size 16px 미만이면 줌인됨) */
+  input, textarea, select {
+    font-size: 16px;
+  }
   #root {
     display: flex;
     flex-direction: column;
