@@ -263,8 +263,8 @@ export default function InspectionListPage() {
                 {isOpen && (
                   <div className="px-3 pb-3 space-y-2 border-t border-white/8">
                     {sortRecords(grouped[date]).map((record) => {
-                      // 환기중·진행중일 때만 완료 버튼 표시
-                      const showComplete = ['환기중', '진행중'].includes(record.status)
+                      // 환기중·진행중·시설일 때 완료 버튼 표시
+                      const showComplete = ['환기중', '진행중', '시설'].includes(record.status)
                       const isProcessing = processingId === record.id
                       return (
                         <div
