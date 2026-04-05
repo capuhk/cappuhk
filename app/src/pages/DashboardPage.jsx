@@ -9,13 +9,13 @@ import useRefreshStore from '../store/useRefreshStore'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 
 // 필터 항목 순서 — 완료는 오늘 기준 인스펙션 완료 건
-const FILTERS = ['환기중', '진행중', '시설오더', '완료']
+const FILTERS = ['환기중', '진행중', '오더', '완료']
 
 // 유형별 스타일 (배지 + 컬럼 헤더)
 const TYPE_STYLE = {
   환기중:  { badge: 'bg-cyan-500/20 text-cyan-400',     header: 'text-cyan-400',     icon: '💨' },
   진행중:  { badge: 'bg-blue-500/20 text-blue-400',     header: 'text-blue-400',     icon: '🚧' },
-  시설오더:{ badge: 'bg-amber-500/20 text-amber-400',   header: 'text-amber-400',    icon: '🛠️' },
+  오더:{ badge: 'bg-amber-500/20 text-amber-400',   header: 'text-amber-400',    icon: '🛠️' },
   완료:    { badge: 'bg-emerald-500/20 text-emerald-400', header: 'text-emerald-400', icon: '✅' },
 }
 
@@ -31,6 +31,9 @@ export default function DashboardPage() {
   const [filterMode, setFilterMode]       = useState('all')
   const [activeFilters, setActiveFilters] = useState(new Set(FILTERS))
 
+  // ── 오더 탭 서브필터 (전체/객실/시설/공용부) ──
+  const [orderSubFilter, setOrderSubFilter] = useState('전체')
+
   // 헤더 🔄 버튼 트리거 — 변경 시 데이터 재조회
   const { refreshKey, triggerRefresh } = useRefreshStore()
   const { pullDistance, refreshing: pullRefreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
@@ -43,6 +46,8 @@ export default function DashboardPage() {
 
   // ── 필터 버튼 클릭 ────────────────────────────
   const handleFilterClick = (filter) => {
+    // 오더 탭 선택 시 서브필터 초기화
+    if (filter === '오더') setOrderSubFilter('전체')
     if (filterMode === 'all') {
       setFilterMode('custom')
       setActiveFilters(new Set([filter]))
@@ -64,6 +69,7 @@ export default function DashboardPage() {
   const handleAllClick = () => {
     setFilterMode('all')
     setActiveFilters(new Set(FILTERS))
+    setOrderSubFilter('전체')
   }
 
   // ── 데이터 로드 ───────────────────────────────
@@ -140,12 +146,16 @@ export default function DashboardPage() {
     rows.forEach((r) => {
       if (map[r.type]) map[r.type].push(r)
     })
+    // 오더 서브필터 적용 — '전체' 이외에는 location_type으로 필터링
+    if (orderSubFilter !== '전체') {
+      map['오더'] = map['오더'].filter((r) => r.location_type === orderSubFilter)
+    }
     return map
-  }, [rows])
+  }, [rows, orderSubFilter])
 
   // ── 상세 이동 ────────────────────────────────
   const handleNavigate = (row) => {
-    if (row.type === '시설오더') navigate(`/facility-order/${row.id}`)
+    if (row.type === '오더') navigate(`/facility-order/${row.id}`)
     else navigate(`/inspection/${row.id}`)
   }
 
@@ -159,7 +169,7 @@ export default function DashboardPage() {
     // 버튼별 로딩 식별자 (rowId-status)
     setProcessingId(`${row.id}-${newStatus}`)
     try {
-      const table = row.type === '시설오더' ? 'facility_orders' : 'inspections'
+      const table = row.type === '오더' ? 'facility_orders' : 'inspections'
       const { error } = await supabase
         .from(table)
         .update({ status: newStatus })
@@ -191,8 +201,8 @@ export default function DashboardPage() {
 
   // ── 공용 카드 컴포넌트 ────────────────────────
   const Card = ({ row, showBadge }) => {
-    // 완료 버튼 표시 여부 (환기중·진행중·시설오더만)
-    const showComplete = ['환기중', '진행중', '시설오더'].includes(row.type)
+    // 완료 버튼 표시 여부 (환기중·진행중·오더만)
+    const showComplete = ['환기중', '진행중', '오더'].includes(row.type)
     // processingId 형식: "{rowId}-{status}" — 정확히 이 행이 처리 중인지 확인
     const isProcessing = processingId !== null && processingId.startsWith(`${row.id}-`)
 
@@ -227,7 +237,7 @@ export default function DashboardPage() {
             {row.author}
           </span>
 
-          {/* 시설종류 (시설오더만) */}
+          {/* 시설종류 (오더만) */}
           {row.sub_label && (
             <span className="text-xs text-amber-400/70 shrink-0 hidden sm:block">
               {row.sub_label}
@@ -251,8 +261,8 @@ export default function DashboardPage() {
         {/* 빠른 처리 버튼 영역 */}
         {showComplete && (
           <div className="shrink-0 flex items-center gap-1">
-            {/* 시설오더: 접수대기면 접수+완료, 처리중이면 처리중 뱃지+완료 */}
-            {row.type === '시설오더' ? (
+            {/* 오더: 접수대기면 접수+완료, 처리중이면 처리중 뱃지+완료 */}
+            {row.type === '오더' ? (
               <>
                 {row.status === '처리중' ? (
                   /* 처리중 상태: 버튼 대신 뱃지 표시 */
@@ -320,6 +330,25 @@ export default function DashboardPage() {
           style={{ height: pullRefreshing ? 40 : pullDistance * 0.57 }}>
           <Loader2 size={20} className={`text-white/40 ${pullRefreshing ? 'animate-spin' : ''}`}
             style={{ transform: `rotate(${pullDistance * 3}deg)` }} />
+        </div>
+      )}
+
+      {/* 오더 서브필터 — 오더 탭 단독 선택 시 표시 */}
+      {filterMode === 'custom' && activeFilters.size === 1 && activeFilters.has('오더') && (
+        <div className="flex gap-2 mb-3">
+          {['전체', '객실', '시설', '공용부'].map((sub) => (
+            <button
+              key={sub}
+              onClick={() => setOrderSubFilter(sub)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                ${orderSubFilter === sub
+                  ? 'bg-amber-500/30 text-amber-300'
+                  : 'bg-white/8 text-white/40 hover:bg-white/12'
+                }`}
+            >
+              {sub}
+            </button>
+          ))}
         </div>
       )}
 

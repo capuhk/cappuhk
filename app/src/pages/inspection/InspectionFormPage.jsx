@@ -180,19 +180,20 @@ export default function InspectionFormPage() {
 
         // 시설 + 발송 체크 시 시설오더 먼저 생성
         if (status === '시설' && sendFacilityOrder) {
-          // facility_types에서 '객실' 타입 조회
+          // facility_types에서 '시설' 타입 조회 (인스펙션 시설 상태 → 오더종류 '시설')
           const { data: ftData } = await supabase
             .from('facility_types')
             .select('id, name')
-            .eq('name', '객실')
+            .eq('name', '시설')
             .maybeSingle()
 
           const { data: foData, error: foErr } = await supabase
             .from('facility_orders')
             .insert({
               room_no:            roomNo,
+              location_type:      '시설',
               facility_type_id:   ftData?.id   ?? null,
-              facility_type_name: ftData?.name ?? '객실',
+              facility_type_name: ftData?.name ?? '시설',
               note:               note.trim() || null,
               status:             '접수대기',
               author_id:          user.id,
@@ -319,7 +320,7 @@ export default function InspectionFormPage() {
                 onChange={(e) => setSendFacilityOrder(e.target.checked)}
                 className="w-5 h-5 rounded accent-orange-500"
               />
-              <span className="text-sm text-orange-300">시설오더로 발송</span>
+              <span className="text-sm text-orange-300">오더로 발송</span>
             </label>
           )}
         </section>

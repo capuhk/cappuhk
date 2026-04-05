@@ -5,10 +5,12 @@ import { supabase } from '../lib/supabase'
 //
 // 사용법:
 //   sendPush({ roles: ['admin', 'manager'], title: '[1602] 하자 완료', body: '...' })
+//   sendPush({ roles: [...], title: '...', orderType: '객실' })
+//     → orderType: '객실'|'시설'|'공용부' — 관리자 알람 ON/OFF 필터링용
 //
 // 실패 시 조용히 무시 — 메인 저장 기능에 영향 없음
 // ─────────────────────────────────────────────
-export const sendPush = ({ roles, title, body = '', url = '/' }) => {
+export const sendPush = ({ roles, title, body = '', url = '/', orderType = null }) => {
   // 비동기로 시작하되 await하지 않음 (fire & forget)
   ;(async () => {
     try {
@@ -23,7 +25,7 @@ export const sendPush = ({ roles, title, body = '', url = '/' }) => {
             'Content-Type': 'application/json',
             Authorization:  `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ roles, title, body, url }),
+          body: JSON.stringify({ roles, title, body, url, orderType }),
         },
       )
     } catch {

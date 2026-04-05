@@ -7,9 +7,9 @@ import { supabase } from '../lib/supabase'
 import useAuthStore from '../store/useAuthStore'
 
 // 조회 필터 항목 정의
-const FILTERS = ['환기중', '진행중', '시설오더', '완료']
+const FILTERS = ['환기중', '진행중', '오더', '완료']
 
-// 시설오더 상태 배지 색상
+// 오더 상태 배지 색상
 const STATUS_COLOR = {
   접수대기: 'bg-zinc-500/30 text-zinc-300',
   처리중:   'bg-blue-500/20 text-blue-400',
@@ -20,7 +20,7 @@ const TYPE_COLOR = {
   환기중:  'bg-cyan-500/20 text-cyan-400',
   진행중:  'bg-blue-500/20 text-blue-400',
   완료:    'bg-emerald-500/20 text-emerald-400',
-  시설오더:'bg-amber-500/20 text-amber-400',
+  오더:'bg-amber-500/20 text-amber-400',
 }
 
 export default function InspectionReviewPage() {
@@ -105,8 +105,8 @@ export default function InspectionReviewPage() {
         ;(data || []).forEach((r) => results.push({ ...r, _type: r.status }))
       }
 
-      // 시설오더 조회 — 선택 날짜만
-      if (filters.has('시설오더')) {
+      // 오더 조회 — 선택 날짜만
+      if (filters.has('오더')) {
         const { data, error } = await supabase
           .from('facility_orders')
           .select(`
@@ -118,7 +118,7 @@ export default function InspectionReviewPage() {
           .order('room_no', { ascending: true })
 
         if (error) throw error
-        ;(data || []).forEach((r) => results.push({ ...r, _type: '시설오더' }))
+        ;(data || []).forEach((r) => results.push({ ...r, _type: '오더' }))
       }
 
       // 등록시간 내림차순 정렬 — 최근 항목이 상단
@@ -152,10 +152,10 @@ export default function InspectionReviewPage() {
     const sheetData = filtered.map((r) => ({
       유형:     r._type,
       객실번호: r.room_no,
-      ...(r._type === '시설오더' ? { 시설종류: r.facility_type_name || '-' } : {}),
+      ...(r._type === '오더' ? { 시설종류: r.facility_type_name || '-' } : {}),
       특이사항: r.note || '',
       작성자:   r.author?.name || '-',
-      ...(r._type === '시설오더' ? { 상태: r.status } : {}),
+      ...(r._type === '오더' ? { 상태: r.status } : {}),
       등록시간: dayjs(r.created_at).format('HH:mm'),
       작성일:   dayjs(r.work_date).format('YYYY-MM-DD'),
     }))
@@ -354,7 +354,7 @@ export default function InspectionReviewPage() {
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium
                             ${TYPE_COLOR[row._type] || ''}`}>
                             {row._type}
-                            {row._type === '시설오더' && (
+                            {row._type === '오더' && (
                               <span className="ml-1 opacity-60">
                                 {STATUS_COLOR[row.status] ? `(${row.status})` : ''}
                               </span>
@@ -367,7 +367,7 @@ export default function InspectionReviewPage() {
                       <td className="py-3 px-3 text-white font-semibold whitespace-nowrap
                         print:text-black">
                         {row.room_no}
-                        {row._type === '시설오더' && (
+                        {row._type === '오더' && (
                           <span className="ml-1.5 text-xs text-white/40 font-normal">
                             {row.facility_type_name}
                           </span>

@@ -110,7 +110,7 @@ export default function FacilityOrderFormPage() {
           .from('facility_orders')
           .update({
             location_type:      locationType,
-            room_no:            locationType === '객실' ? roomNo : null,
+            room_no:            locationType === '공용부' ? null : (roomNo || null),
             facility_type_id:   facilityType.id,
             facility_type_name: facilityType.name,
             note:               note.trim() || null,
@@ -145,7 +145,7 @@ export default function FacilityOrderFormPage() {
           .from('facility_orders')
           .insert({
             location_type:      locationType,
-            room_no:            locationType === '객실' ? roomNo : null,
+            room_no:            locationType === '공용부' ? null : (roomNo || null),
             facility_type_id:   facilityType.id,
             facility_type_name: facilityType.name,
             note:               note.trim() || null,
@@ -169,14 +169,21 @@ export default function FacilityOrderFormPage() {
           )
         }
 
-        // 신규 등록 시 시설 담당자에게 푸시 발송
-        // 공용부·시설 구분은 room_no 없으므로 location_type 표시
-        const pushLocation = locationType === '객실' ? roomNo : locationType
+        // 신규 등록 시 오더종류별로 다른 역할에 푸시 발송
+        // 객실: 관리자+하우스맨+프론트 / 시설: 관리자+시설+프론트 / 공용부: 시설만
+        const ORDER_PUSH_ROLES = {
+          '객실':  ['admin', 'manager', 'supervisor', 'houseman', 'front'],
+          '시설':  ['admin', 'manager', 'supervisor', 'facility', 'front'],
+          '공용부': ['facility'],
+        }
+        // room_no 있으면 객실번호 표시, 없으면 location_type 표시
+        const pushLocation = foData.room_no ?? locationType
         sendPush({
-          roles: ['facility'],
-          title: `[${pushLocation}] 시설오더 — ${facilityType.name}`,
-          body:  note.trim() || '',
-          url:   `/facility-order/${foData.id}`,
+          roles:     ORDER_PUSH_ROLES[locationType] ?? ['facility'],
+          title:     `[${pushLocation}] 오더 — ${facilityType.name}`,
+          body:      note.trim() || '',
+          url:       `/facility-order/${foData.id}`,
+          orderType: locationType,
         })
 
         navigate('/facility-order', { replace: true })
@@ -207,7 +214,7 @@ export default function FacilityOrderFormPage() {
       <div className="px-4 pt-6 pb-48 space-y-6">
 
         {/* 오더 종류 — 상단 배치, 선택 시 객실번호 표시 여부 결정 */}
-        {/* "공용부" 또는 "시설" 선택 시 객실번호 숨김 */}
+        {/* "공용부" 선택 시에만 객실번호 숨김 — "시설" 선택 시에도 객실번호 선택 가능 */}
         <section>
           <label className="block text-sm text-white/50 mb-2">오더 종류 *</label>
           <div className="flex flex-wrap gap-2">
@@ -217,10 +224,10 @@ export default function FacilityOrderFormPage() {
                 type="button"
                 onClick={() => {
                   setFacilityType({ id: ft.id, name: ft.name })
-                  // 공용부·시설 선택 시 객실번호 초기화 + location_type 갱신
-                  const noRoom = ft.name === '공용부' || ft.name === '시설'
-                  setLocationType(noRoom ? ft.name : '객실')
-                  if (noRoom) setRoomNo(null)
+                  // 공용부만 객실번호 초기화 — 시설은 객실번호 선택 가능하므로 유지
+                  const isCommon = ft.name === '공용부'
+                  setLocationType(ft.name === '공용부' || ft.name === '시설' ? ft.name : '객실')
+                  if (isCommon) setRoomNo(null)
                 }}
                 className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
                   facilityType?.id === ft.id
@@ -237,8 +244,8 @@ export default function FacilityOrderFormPage() {
           </div>
         </section>
 
-        {/* 객실번호 — 공용부·시설 선택 시 숨김 */}
-        {locationType === '객실' && (
+        {/* 객실번호 — 공용부 선택 시에만 숨김 (시설은 선택 가능) */}
+        {locationType !== '공용부' && (
           <section>
             <label className="block text-sm text-white/50 mb-2">객실번호 *</label>
             <RoomPicker value={roomNo} onChange={setRoomNo} />

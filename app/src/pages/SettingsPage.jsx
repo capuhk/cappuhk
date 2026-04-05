@@ -179,6 +179,18 @@ export default function SettingsPage() {
     finally { setPushLoading(false) }
   }
 
+  // ── 오더 알람 카테고리별 ON/OFF 토글 (관리자급 전용) ──
+  const handleOrderPushToggle = async (col) => {
+    const newVal = !user[col]
+    const { error } = await supabase
+      .from('users')
+      .update({ [col]: newVal })
+      .eq('id', user.id)
+    if (error) { toast('저장 실패: ' + error.message, 'error'); return }
+    // useAuthStore 프로필 갱신 (로컬 반영)
+    await refreshProfile()
+  }
+
   // ── 층 토글 (아코디언) ────────────────────────
   const toggleFloor = (floor) => {
     setExpandedFloors((prev) => {
@@ -522,6 +534,38 @@ export default function SettingsPage() {
                 </button>
               </div>
             </section>
+
+            {/* 오더 알람 설정 — 관리자·소장·주임 전용 */}
+            {isManager() && (
+              <section>
+                <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">오더 알람</h2>
+                <div className="bg-white/5 rounded-2xl divide-y divide-white/8">
+                  {[
+                    { col: 'push_room_order',     label: '객실 오더 알람' },
+                    { col: 'push_facility_order', label: '시설 오더 알람' },
+                    { col: 'push_common_order',   label: '공용부 오더 알람' },
+                  ].map(({ col, label }) => (
+                    <div key={col} className="flex items-center justify-between px-4 py-3.5">
+                      <p className="text-sm text-white/70">{label}</p>
+                      <button
+                        onClick={() => handleOrderPushToggle(col)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                          transition-all
+                          ${user[col] !== false
+                            ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30'
+                            : 'bg-white/10 text-white/40 hover:bg-white/15'
+                          }`}
+                      >
+                        {user[col] !== false
+                          ? <><Bell size={12} /> 켜짐</>
+                          : <><BellOff size={12} /> 꺼짐</>
+                        }
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
 

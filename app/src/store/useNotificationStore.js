@@ -110,7 +110,7 @@ const useNotificationStore = create((set, get) => ({
           id:         `fo_${o.id}`,
           rawId:      o.id,
           type:       'facility_order',
-          title:      `[시설오더] ${o.room_no}호 ${o.facility_type_name || ''}`.trim(),
+          title:      `[오더] ${o.room_no ? o.room_no + '호 ' : ''}${o.facility_type_name || ''}`.trim(),
           url:        `/facility-order/${o.id}`,
           created_at: o.created_at,
         })

@@ -88,7 +88,7 @@ const useAuthStore = create((set, get) => ({
     try {
       const { data } = await supabase
         .from('users')
-        .select('id, name, email, role, avatar_url, is_locked, is_active')
+        .select('id, name, email, role, avatar_url, is_locked, is_active, push_room_order, push_facility_order, push_common_order')
         .eq('id', userId)
         .single()
       return data

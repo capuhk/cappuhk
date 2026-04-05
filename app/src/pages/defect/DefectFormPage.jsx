@@ -51,8 +51,9 @@ export default function DefectFormPage() {
   const [updaterName, setUpdaterName] = useState(null)
 
   // ── Bottom Sheet 열림 상태 ────────────────────
-  const [divisionSheetOpen, setDivisionSheetOpen] = useState(false)
-  const [locationSheetOpen, setLocationSheetOpen] = useState(false)
+  const [divisionSheetOpen, setDivisionSheetOpen]   = useState(false)
+  const [locationSheetOpen, setLocationSheetOpen]   = useState(false)
+  const [categorySheetOpen, setCategorySheetOpen]   = useState(false)
 
   // ── UI 상태 ──────────────────────────────────
   const [loading, setLoading] = useState(isEdit)
@@ -164,10 +165,15 @@ export default function DefectFormPage() {
     setLocationSheetOpen(false)
 
     if (!isEdit && locations_sel.length > 0) {
-      // 이미지 영역으로 스크롤
-      setTimeout(() => {
-        imageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }, 300)
+      // 하자분류 미선택이면 자동으로 분류 Sheet 오픈 (위치 → 분류 자동진행)
+      if (!category) {
+        setTimeout(() => setCategorySheetOpen(true), 350)
+      } else {
+        // 이미지 영역으로 스크롤
+        setTimeout(() => {
+          imageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 300)
+      }
     }
   }
 
@@ -306,7 +312,7 @@ export default function DefectFormPage() {
               {division && (
                 <span
                   role="button"
-                  onClick={(e) => { e.stopPropagation(); setDivision(''); setLocation('') }}
+                  onClick={(e) => { e.stopPropagation(); setDivision(''); setLocationsSel([]) }}
                   className="text-white/40 hover:text-white/70"
                 >
                   <X size={14} />
@@ -353,25 +359,32 @@ export default function DefectFormPage() {
           </section>
         )}
 
-        {/* 하자분류 — 인라인 토글 버튼 */}
+        {/* 하자분류 — Bottom Sheet 피커 트리거 */}
         <section>
           <label className="block text-sm text-white/50 mb-2">하자분류</label>
-          <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setCategory(category === cat.name ? '' : cat.name)}
-                className={`px-3 py-2 rounded-xl text-sm font-medium transition-all active:scale-95 ${
-                  category === cat.name
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white/10 text-white/50 hover:bg-white/15'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setCategorySheetOpen(true)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-colors ${
+              category
+                ? 'bg-blue-500/10 border-blue-500/40 text-white'
+                : 'bg-white/10 border-white/20 text-white/40'
+            }`}
+          >
+            <span className="text-sm">{category || '하자분류를 선택하세요'}</span>
+            <div className="flex items-center gap-2">
+              {category && (
+                <span
+                  role="button"
+                  onClick={(e) => { e.stopPropagation(); setCategory('') }}
+                  className="text-white/40 hover:text-white/70"
+                >
+                  <X size={14} />
+                </span>
+              )}
+              <ChevronRight size={16} className="text-white/30" />
+            </div>
+          </button>
         </section>
 
         {/* 이미지 — 자동진행 스크롤 기준점 */}
@@ -496,6 +509,32 @@ export default function DefectFormPage() {
               {div.name}
             </button>
           ))}
+        </div>
+      </BottomSheet>
+
+      {/* 하자분류 선택 Bottom Sheet */}
+      <BottomSheet
+        open={categorySheetOpen}
+        onClose={() => setCategorySheetOpen(false)}
+        title="하자분류 선택"
+      >
+        <div className="flex flex-wrap gap-2 pt-2 pb-4">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => { setCategory(cat.name); setCategorySheetOpen(false) }}
+              className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+                category === cat.name
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/15'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+          {categories.length === 0 && (
+            <p className="text-sm text-white/30 py-4">하자분류 데이터가 없습니다.</p>
+          )}
         </div>
       </BottomSheet>
 

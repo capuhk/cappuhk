@@ -136,7 +136,7 @@ export default function FacilityOrderDetailPage() {
 
   // ── 완료 처리 (처리중 → 완료) ─────────────────
   const handleComplete = async () => {
-    if (!window.confirm('시설오더를 완료 처리하시겠습니까?')) return
+    if (!window.confirm('오더를 완료 처리하시겠습니까?')) return
     setCompleting(true)
     const { error } = await supabase
       .from('facility_orders')
@@ -153,11 +153,23 @@ export default function FacilityOrderDetailPage() {
         new_status:        '완료',
       })
 
+      // 완료 처리 푸시 — 오더종류별 수신 역할 분기
+      // 객실·시설: 관리자+담당자+프론트 / 공용부: 관리자만
+      const COMPLETE_PUSH_ROLES = {
+        '객실':  ['admin', 'manager', 'supervisor', 'houseman', 'front'],
+        '시설':  ['admin', 'manager', 'supervisor', 'facility', 'front'],
+        '공용부': ['admin', 'manager', 'supervisor'],
+      }
+      const completeLocationType = record.location_type ?? '객실'
+      const completePushTitle = record.room_no
+        ? `[${record.room_no}] 오더 완료`
+        : `[${completeLocationType}] 오더 완료`
       sendPush({
-        roles: ['admin', 'manager', 'supervisor'],
-        title: `[${record.room_no}] 시설오더 완료`,
-        body:  record.facility_type_name || '',
-        url:   `/facility-order/${id}`,
+        roles:     COMPLETE_PUSH_ROLES[completeLocationType] ?? ['admin', 'manager', 'supervisor'],
+        title:     completePushTitle,
+        body:      record.facility_type_name || '',
+        url:       `/facility-order/${id}`,
+        orderType: completeLocationType,
       })
 
       await fetchData()
@@ -260,7 +272,7 @@ export default function FacilityOrderDetailPage() {
 
   // ── 삭제 ─────────────────────────────────────
   const handleDelete = async () => {
-    if (!window.confirm('이 시설오더를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return
+    if (!window.confirm('이 오더를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return
 
     setDeleting(true)
 
@@ -511,7 +523,7 @@ export default function FacilityOrderDetailPage() {
               ? <Loader2 size={16} className="animate-spin" />
               : <Trash2 size={16} />
             }
-            {deleting ? '삭제 중...' : '시설오더 삭제'}
+            {deleting ? '삭제 중...' : '오더 삭제'}
           </button>
         )}
       </div>

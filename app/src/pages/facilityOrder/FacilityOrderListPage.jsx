@@ -91,11 +91,11 @@ export default function FacilityOrderListPage() {
       const { excelHeaders, excelRows, printHeaders, printRows } =
         await prepareFacilityExport(filtered, policies)
       const dateRange = `${dateFrom} ~ ${dateTo}`
-      const filename  = `시설오더_${dateFrom}_${dateTo}`
+      const filename  = `오더_${dateFrom}_${dateTo}`
       if (type === 'excel') {
         downloadExcel(excelHeaders, excelRows, filename)
       } else {
-        openPrintWindow('시설오더 목록', printHeaders, printRows, dateRange)
+        openPrintWindow('오더 목록', printHeaders, printRows, dateRange)
       }
     } catch (err) {
       console.error('내보내기 오류:', err)
@@ -300,7 +300,7 @@ export default function FacilityOrderListPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <p className="text-sm text-white/30">시설오더가 없습니다</p>
+          <p className="text-sm text-white/30">오더가 없습니다</p>
         </div>
       ) : (
         <div className="px-4 pb-6 space-y-2">

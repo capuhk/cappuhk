@@ -23,7 +23,7 @@ const MAIN_TABS = [
   },
   {
     path: '/facility-order',
-    label: '시설오더',
+    label: '오더',
     Icon: Wrench,
     roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'],
   },

@@ -274,7 +274,7 @@ export default function AppPolicyEditor() {
           </div>
 
           <div className="space-y-1.5 pt-3 border-t border-white/8">
-            <p className="text-sm text-white/70">시설오더 사진</p>
+            <p className="text-sm text-white/70">오더 사진</p>
             <p className="text-xs text-white/30">증거 보존 필요 — 길게 유지 권장</p>
             <NumberField policyKey="defect_facility_photo_days" unit="일 후 자동 삭제" />
           </div>

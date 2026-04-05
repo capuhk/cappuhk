@@ -19,9 +19,9 @@ const TITLE_MAP = {
   '/defect':                  '객실하자',
   '/defect/new':              '객실하자 등록',
   '/defect/settings':         '객실하자 설정',
-  '/facility-order':          '시설오더',
-  '/facility-order/new':      '시설오더 등록',
-  '/facility-order/settings': '시설오더 설정',
+  '/facility-order':          '오더',
+  '/facility-order/new':      '오더 등록',
+  '/facility-order/settings': '오더 설정',
   '/inspection-review':       '인스펙션조회',
   '/notice':                  '게시판',
   '/notice/new':              '글 등록',
@@ -38,9 +38,9 @@ const getDynamicTitle = (pathname) => {
   if (/\/inspection\/.+/.test(pathname))              return '인스펙션 상세'
   if (/\/defect\/.+\/edit$/.test(pathname))           return '객실하자 수정'
   if (/\/defect\/.+/.test(pathname))                  return '객실하자 상세'
-  if (/\/facility-order\/date\/.+/.test(pathname))    return '시설오더 날짜별'
-  if (/\/facility-order\/.+\/edit$/.test(pathname))   return '시설오더 수정'
-  if (/\/facility-order\/.+/.test(pathname))          return '시설오더 상세'
+  if (/\/facility-order\/date\/.+/.test(pathname))    return '오더 날짜별'
+  if (/\/facility-order\/.+\/edit$/.test(pathname))   return '오더 수정'
+  if (/\/facility-order\/.+/.test(pathname))          return '오더 상세'
   if (/\/notice\/.+\/edit$/.test(pathname))           return '글 수정'
   if (/\/notice\/.+/.test(pathname))                  return '게시판 상세'
   if (/\/staff\/.+/.test(pathname))                   return '직원 상세'
