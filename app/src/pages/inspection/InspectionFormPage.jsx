@@ -9,6 +9,7 @@ import ImageUploader from '../../components/common/ImageUploader'
 import { networkSave } from '../../utils/networkSave'
 import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../../utils/masterCache'
 import { getBtnClass } from '../../utils/statusColors'
+import { sendPush } from '../../utils/sendPush'
 
 export default function InspectionFormPage() {
   const { id }   = useParams()       // 수정 모드: id 존재
@@ -204,6 +205,15 @@ export default function InspectionFormPage() {
 
           if (foErr) throw foErr
           facilityOrderId = foData.id
+
+          // 오더 신규 생성 — 시설 담당자·관리자·프론트에게 푸시 발송
+          sendPush({
+            roles:     ['admin', 'manager', 'supervisor', 'facility', 'front'],
+            title:     `[${roomNo}] 오더 — ${ftData?.name ?? '시설'}`,
+            body:      note.trim() || '',
+            url:       `/facility-order/${foData.id}`,
+            orderType: '시설',
+          })
         }
 
         // 인스펙션 생성
