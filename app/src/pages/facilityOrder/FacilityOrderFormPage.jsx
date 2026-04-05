@@ -253,31 +253,24 @@ export default function FacilityOrderFormPage() {
           </section>
         )}
 
-        {/* 긴급오더 */}
+        {/* 긴급오더 — 토글 스위치 */}
         <section>
           <button
             type="button"
             onClick={() => setIsUrgent((v) => !v)}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-colors ${
-              isUrgent
-                ? 'border-red-500/50 bg-red-500/10'
-                : 'border-white/20 bg-white/5'
-            }`}
+            className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-white/5 border border-white/10 transition-colors active:bg-white/8"
           >
-            {/* 체크박스 */}
-            <span className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border transition-colors ${
-              isUrgent ? 'bg-red-500 border-red-500' : 'border-white/30'
-            }`}>
-              {isUrgent && (
-                <svg width="11" height="8" viewBox="0 0 11 8" fill="none">
-                  <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </span>
             <span className={`text-sm font-medium ${isUrgent ? 'text-red-400' : 'text-white/60'}`}>
               🚨 긴급오더
             </span>
-            <span className="ml-auto text-xs text-white/30">즉시 처리 필요</span>
+            {/* iOS 스타일 토글 스위치 */}
+            <span className={`relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 shrink-0 ${
+              isUrgent ? 'bg-red-500' : 'bg-white/20'
+            }`}>
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                isUrgent ? 'translate-x-5' : 'translate-x-0'
+              }`} />
+            </span>
           </button>
         </section>
 

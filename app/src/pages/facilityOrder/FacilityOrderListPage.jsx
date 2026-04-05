@@ -336,7 +336,7 @@ export default function FacilityOrderListPage() {
 
                 {/* 카드 목록 */}
                 {isOpen && (
-                  <div className="px-3 pb-3 space-y-2 border-t border-white/8">
+                  <div className="px-3 pb-3 space-y-3 border-t border-white/8">
                     {grouped[date].map((record) => {
                       const isProcessing = processingId?.startsWith(record.id)
                       const showButtons  = record.status !== '완료' && record.status !== '이관'
