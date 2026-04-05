@@ -177,7 +177,8 @@ export default function FacilityOrderFormPage() {
           '공용부': ['facility'],
         }
         // room_no 있으면 객실번호 표시, 없으면 location_type 표시
-        const pushLocation = foData.room_no ?? locationType
+        // foData는 id만 반환하므로 상태변수 roomNo 직접 사용
+        const pushLocation = roomNo ?? locationType
         sendPush({
           roles:     ORDER_PUSH_ROLES[locationType] ?? ['facility'],
           title:     `[${pushLocation}] 오더 — ${facilityType.name}`,
