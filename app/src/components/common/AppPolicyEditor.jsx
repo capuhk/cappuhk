@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Loader2, Save } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Loader2, Save, Upload, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { invalidateCache, CACHE_KEYS } from '../../utils/masterCache'
 
@@ -165,6 +165,43 @@ export default function AppPolicyEditor() {
     )
   }
 
+  // ── 브랜딩 이미지 업로드 ─────────────────────
+  const logoInputRef = useRef(null)
+  const bgInputRef   = useRef(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingBg,   setUploadingBg]   = useState(false)
+
+  const handleBrandingUpload = async (file, policyKey, setUploading) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      // 기존 파일 삭제 (덮어쓰기 방지)
+      const ext      = file.name.split('.').pop()
+      const fileName = `${policyKey}.${ext}`
+      await supabase.storage.from('branding').remove([fileName])
+
+      const { error: upErr } = await supabase.storage
+        .from('branding')
+        .upload(fileName, file, { contentType: file.type, upsert: true })
+
+      if (upErr) throw upErr
+
+      // 공개 URL 획득 후 정책 저장
+      const { data: { publicUrl } } = supabase.storage.from('branding').getPublicUrl(fileName)
+      // 캐시 버스팅용 타임스탬프 추가
+      await handleChange(policyKey, `${publicUrl}?t=${Date.now()}`)
+    } catch (err) {
+      alert('업로드 실패: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleRemoveBranding = async (policyKey) => {
+    if (!window.confirm('이미지를 삭제하시겠습니까?')) return
+    await handleChange(policyKey, '')
+  }
+
   if (loading) return (
     <div className="flex justify-center py-6">
       <Loader2 size={18} className="text-white/30 animate-spin" />
@@ -174,6 +211,147 @@ export default function AppPolicyEditor() {
   // ── 렌더 ─────────────────────────────────────
   return (
     <div className="space-y-6">
+
+      {/* ── 섹션 0: 브랜딩 ──────────────────────── */}
+      <section>
+        <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">
+          🏨 브랜딩
+        </h2>
+        <div className="bg-white/5 rounded-2xl px-4 py-4 space-y-4">
+
+          {/* 호텔명 */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-white/70 flex-1">호텔명 (로그인 화면 표시)</p>
+              <SaveIndicator policyKey="hotel_name" />
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={policies['hotel_name'] || ''}
+                onChange={(e) => setPolicies((prev) => ({ ...prev, hotel_name: e.target.value }))}
+                onBlur={(e) => {
+                  const val = e.target.value.trim()
+                  if (val && val !== policies['hotel_name']) handleChange('hotel_name', val)
+                }}
+                placeholder="호텔카푸치노"
+                className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/15
+                  text-white text-sm outline-none focus:border-white/35 transition-colors
+                  placeholder:text-white/25"
+              />
+              <button
+                onClick={() => handleChange('hotel_name', policies['hotel_name'] || '')}
+                disabled={saveState['hotel_name'] === SAVE_LOADING}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white/10 text-white/50 text-xs
+                  hover:bg-white/15 transition-colors disabled:opacity-30"
+              >
+                {saveState['hotel_name'] === SAVE_LOADING
+                  ? <Loader2 size={11} className="animate-spin" />
+                  : <Save size={11} />
+                }
+                저장
+              </button>
+            </div>
+          </div>
+
+          {/* 로고 이미지 */}
+          <div className="space-y-2 pt-3 border-t border-white/8">
+            <p className="text-sm text-white/70">로고 이미지</p>
+            <div className="flex items-center gap-3">
+              {/* 미리보기 */}
+              {policies['login_logo_url'] ? (
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-white/10 shrink-0">
+                  <img src={policies['login_logo_url']} alt="로고" className="w-full h-full object-contain" />
+                  <button
+                    onClick={() => handleRemoveBranding('login_logo_url')}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60
+                      flex items-center justify-center text-white/80 hover:bg-black/80"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10
+                  flex items-center justify-center shrink-0">
+                  <span className="text-xs text-white/20">없음</span>
+                </div>
+              )}
+              <div>
+                <button
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 text-white/60
+                    text-xs hover:bg-white/15 transition-colors disabled:opacity-40"
+                >
+                  {uploadingLogo ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                  {uploadingLogo ? '업로드 중...' : '이미지 선택'}
+                </button>
+                <p className="text-xs text-white/25 mt-1">PNG/JPG · 권장 512×512</p>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleBrandingUpload(file, 'login_logo_url', setUploadingLogo)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 배경 이미지 */}
+          <div className="space-y-2 pt-3 border-t border-white/8">
+            <p className="text-sm text-white/70">로그인 배경 이미지</p>
+            <div className="flex items-center gap-3">
+              {/* 미리보기 */}
+              {policies['login_bg_url'] ? (
+                <div className="relative w-24 h-16 rounded-xl overflow-hidden bg-white/10 shrink-0">
+                  <img src={policies['login_bg_url']} alt="배경" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => handleRemoveBranding('login_bg_url')}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60
+                      flex items-center justify-center text-white/80 hover:bg-black/80"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-24 h-16 rounded-xl bg-white/5 border border-white/10
+                  flex items-center justify-center shrink-0">
+                  <span className="text-xs text-white/20">없음</span>
+                </div>
+              )}
+              <div>
+                <button
+                  onClick={() => bgInputRef.current?.click()}
+                  disabled={uploadingBg}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 text-white/60
+                    text-xs hover:bg-white/15 transition-colors disabled:opacity-40"
+                >
+                  {uploadingBg ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                  {uploadingBg ? '업로드 중...' : '이미지 선택'}
+                </button>
+                <p className="text-xs text-white/25 mt-1">PNG/JPG · 권장 1080×1920</p>
+                <input
+                  ref={bgInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) handleBrandingUpload(file, 'login_bg_url', setUploadingBg)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
 
       {/* ── 섹션 1: 인스펙션 기본 규칙 ─────────── */}
       <section>

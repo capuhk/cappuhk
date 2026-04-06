@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import useAuthStore from '../store/useAuthStore'
 
 // PIN 입력 상태 표시 (● / ○)
 const PinDots = ({ length, filled }) => (
-  <div className="flex gap-4 justify-center my-6">
+  <div className="flex gap-4 justify-center my-8 z-10 relative">
     {Array.from({ length }).map((_, i) => (
       <span
         key={i}
-        className={`w-4 h-4 rounded-full border-2 transition-all ${
+        className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${
           i < filled
-            ? 'bg-white border-white'
-            : 'bg-transparent border-white/50'
+            ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)] scale-110'
+            : 'bg-white/10'
         }`}
       />
     ))}
@@ -33,12 +34,34 @@ export default function LoginPage() {
   const { login, getSavedId, clearSavedId, error, clearError, session, loading } = useAuthStore()
 
   // 단계: null = 로드 중, 'id' = 아이디 입력, 'pin' = PIN 입력
-  // null로 시작해서 저장된 아이디 확인 후 결정 — 초기 깜빡임 방지
   const [step, setStep] = useState(null)
   const [savedId, setSavedId] = useState('')
-  const [identifier, setIdentifier] = useState('')  // id 단계에서 입력값
+  const [identifier, setIdentifier] = useState('')
   const [pin, setPin] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // 브랜딩 정책 (호텔명, 로고, 배경)
+  const [hotelName, setHotelName]   = useState('')
+  const [logoUrl,   setLogoUrl]     = useState('')
+  const [bgUrl,     setBgUrl]       = useState('')
+
+  // ── 브랜딩 정책 로드 (로그인 전이므로 직접 조회) ──
+  useEffect(() => {
+    const loadBranding = async () => {
+      const { data } = await supabase
+        .from('app_policies')
+        .select('key, value')
+        .in('key', ['hotel_name', 'login_logo_url', 'login_bg_url'])
+
+      if (data) {
+        const map = Object.fromEntries(data.map((p) => [p.key, p.value]))
+        setHotelName(map['hotel_name']     || '')
+        setLogoUrl(  map['login_logo_url'] || '')
+        setBgUrl(    map['login_bg_url']   || '')
+      }
+    }
+    loadBranding()
+  }, [])
 
   // 이미 로그인된 경우 메인으로 이동
   useEffect(() => {
@@ -66,16 +89,14 @@ export default function LoginPage() {
     }
   }, [error, clearError])
 
-  // PIN 자동 제출 (4자리 완성 즉시)
+  // PIN 자동 제출 (6자리 완성 즉시)
   useEffect(() => {
     if (pin.length === PIN_LENGTH) {
       handleLogin()
     }
   }, [pin])
 
-  // ─────────────────────────────────────────────
-  // 로그인 처리
-  // ─────────────────────────────────────────────
+  // ── 로그인 처리 ───────────────────────────────
   const handleLogin = async () => {
     if (submitting) return
     const id = step === 'id' ? identifier.trim() : savedId
@@ -88,7 +109,6 @@ export default function LoginPage() {
     if (success) {
       navigate('/inspection', { replace: true })
     } else {
-      // 로그인 실패 시 PIN 초기화
       setPin('')
     }
     setSubmitting(false)
@@ -125,28 +145,54 @@ export default function LoginPage() {
     setSavedId(identifier.trim())
   }
 
-  // ─────────────────────────────────────────────
-  // 렌더
-  // ─────────────────────────────────────────────
   // 저장된 아이디 확인 전 — 빈 화면 유지 (깜빡임 방지)
   if (step === null) return null
 
   return (
-    <div className="min-h-screen bg-zinc-900 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center px-4">
 
-        {/* 로고 + 앱명 */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-3 bg-white/10 rounded-2xl flex items-center justify-center">
-            <span className="text-2xl font-bold text-white">HK</span>
-          </div>
-          <h1 className="text-white text-xl font-semibold tracking-wide">하우스키핑</h1>
+      {/* 배경 이미지 — 업로드된 경우 표시, 없으면 기존 그라디언트 */}
+      {bgUrl ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${bgUrl})` }}
+        >
+          {/* 어두운 오버레이 */}
+          <div className="absolute inset-0 bg-black/55" />
+        </div>
+      ) : (
+        <div className="absolute inset-0 bg-slate-950">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_right,_var(--tw-gradient-stops))] from-amber-600/10 via-transparent to-transparent pointer-events-none" />
+        </div>
+      )}
+
+      <div className="w-full max-w-sm z-10 relative">
+        {/* 로고 + 호텔명 */}
+        <div className="text-center mb-10">
+          {/* 로고 이미지 또는 기본 HK 박스 */}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="로고"
+              className="w-16 h-16 mx-auto mb-4 object-contain rounded-2xl"
+            />
+          ) : (
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-amber-200 to-amber-500 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+              <span className="text-2xl font-black text-slate-900 tracking-tighter">HK</span>
+            </div>
+          )}
+          {/* 호텔명 — 설정값 우선, 없으면 기본값 */}
+          <h1 className="text-white text-2xl font-bold tracking-widest uppercase">
+            {hotelName || 'Housekeeping'}
+          </h1>
+          <p className="text-white/40 text-xs mt-1 tracking-widest uppercase font-medium">Housekeeping</p>
         </div>
 
         {/* ID 입력 단계 */}
         {step === 'id' && (
           <div className="space-y-4">
-            <p className="text-white/70 text-center text-sm">
+            <p className="text-white/60 text-center text-sm font-medium">
               이메일(관리자) 또는 이름을 입력하세요
             </p>
             <input
@@ -156,15 +202,15 @@ export default function LoginPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleIdNext()}
               placeholder="이메일 또는 이름"
               autoFocus
-              className="w-full bg-white/10 text-white placeholder-white/40 rounded-xl px-4 py-3
-                         border border-white/20 focus:outline-none focus:border-white/60
-                         text-center text-lg"
+              className="w-full bg-white/5 text-white placeholder-white/30 rounded-xl px-4 py-3.5
+                         border border-white/10 focus:outline-none focus:border-amber-400/50 focus:bg-white/10
+                         text-center text-lg transition-all"
             />
             <button
               onClick={handleIdNext}
               disabled={!identifier.trim()}
-              className="w-full py-3 rounded-xl font-semibold text-zinc-900 bg-white
-                         disabled:opacity-40 active:scale-95 transition-transform"
+              className="w-full py-3.5 rounded-xl font-bold text-slate-900 bg-amber-400
+                         disabled:opacity-30 disabled:bg-white/10 disabled:text-white/40 active:scale-95 transition-all shadow-[0_4px_14px_rgba(251,191,36,0.2)]"
             >
               다음
             </button>
@@ -174,32 +220,29 @@ export default function LoginPage() {
         {/* PIN 입력 단계 */}
         {step === 'pin' && (
           <>
-            <p className="text-white text-center text-lg font-medium">
-              안녕하세요, <span className="text-white font-bold">{savedId}</span>님
+            <p className="text-white text-center text-lg font-medium tracking-wide">
+              안녕하세요, <span className="text-amber-400 font-bold">{savedId}</span>님
             </p>
 
-            {/* PIN 도트 표시 */}
             <PinDots length={PIN_LENGTH} filled={pin.length} />
 
-            {/* 에러 메시지 */}
             {error && (
               <p className="text-red-400 text-center text-sm mb-2 animate-pulse">
                 {error}
               </p>
             )}
 
-            {/* 숫자 키패드 */}
-            <div className="grid grid-cols-3 gap-3 mt-2">
+            <div className="grid grid-cols-3 gap-3 mt-4">
               {KEYPAD.flat().map((key) => (
                 <button
                   key={key}
                   onClick={() => handleKey(key)}
                   disabled={submitting}
                   className={`
-                    h-14 rounded-xl text-lg font-semibold transition-all active:scale-95
+                    h-14 rounded-xl text-lg font-medium touch-manipulation transition-transform duration-75 active:scale-90
                     ${key === '삭제' || key === '확인'
-                      ? 'bg-white/10 text-white/70 hover:bg-white/20'
-                      : 'bg-white/15 text-white hover:bg-white/25'}
+                      ? 'bg-white/5 border border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                      : 'bg-white/5 border border-white/10 text-white/90 hover:bg-white/10'}
                     disabled:opacity-40
                   `}
                 >
@@ -208,11 +251,10 @@ export default function LoginPage() {
               ))}
             </div>
 
-            {/* 다른 계정으로 로그인 */}
-            <div className="text-center mt-6">
+            <div className="text-center mt-8">
               <button
                 onClick={handleSwitchAccount}
-                className="text-white/50 text-sm hover:text-white/80 transition-colors underline underline-offset-2"
+                className="text-white/40 text-sm hover:text-white/70 transition-colors underline underline-offset-4"
               >
                 다른 계정으로 로그인
               </button>
