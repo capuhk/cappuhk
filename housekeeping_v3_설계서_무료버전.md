@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-04 (iOS 무한스피너 근본 수정 확인 완료)
-> **버전**: v4.3 (v4.2 + iOS 무한스피너 3종 수정 + FAB 위치 수정)
+> **최종 업데이트**: 2026-04-04 (게시판 권한·공개 대상 기능 추가, 하우스맨·프론트 역할 추가)
+> **버전**: v4.4 (v4.3 + 하우스맨/프론트 역할 + 게시판 권한 정책 + 공개 대상 target_roles)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -2124,3 +2124,4 @@ $$ LANGUAGE SQL STABLE;
 | v4.1 | 2026-04-02 | PWA 브랜딩 — 카푸치노 호텔 로고 자동 크롭·리사이즈로 pwa-192x192.png·pwa-512x512.png·apple-touch-icon.png·favicon.svg 교체, index.html 타이틀 Cappuccino Hotel 변경 |
 | v4.2 | 2026-04-03 | 전체 아키텍처 버그 리뷰 3단계 완료 — [A] vercel.json SPA rewrite(새로고침 404), send-push CORS(VAPID 초기화 위치), overscroll-behavior-y:none(PTR 충돌), 인스펙션조회 정렬 내림차순, 로그인 step null(깜빡임) [B] 이미지 삭제 에러체크 3폼, 대시보드 완료쿼리 에러체크, useNotificationStore created_at undefined 방어 [C] RoomPicker sort_order null, ImageUploader join 의존성, useAuthStore static import, SettingsPage alert→toast 전환 |
 | v4.3 | 2026-04-04 | iOS 무한스피너 근본 수정 — [1] useAuthStore.init() INITIAL_SESSION 이벤트 → getSession() 직접 호출(내부 네트워크 hanging 제거) [2] usePullToRefresh deps에서 pullDistance/refreshing 제거→ref 사용(touchmove마다 리스너 재등록→iOS touchend 누락 방지) [3] visibilitychange 임계값 5분→2분(정확히 5분 미만 미발동 방지) [4] FAB bottom에 env(safe-area-inset-bottom) 추가(홈화면 PWA 탭바 겹침 수정) |
+| v4.4 | 2026-04-04 | 하우스맨·프론트 역할 추가 + 게시판 권한 정책 구현 — [1] migration_v10: users.role CHECK에 houseman/front 추가 [2] UserFormPage: 역할 선택에 하우스맨/프론트 추가 [3] BottomTabBar/SideMenu/FAB: houseman·front → 시설오더·직원목록만 접근 [4] AppRouter: excludeRoles 추가, 게시판·설정에서 houseman·front 차단 [5] 게시판 권한 운영 정책 — AppPolicyEditor에 notice_read_roles·notice_write_roles 체크박스 섹션 추가 (메이드·시설 동적 토글, 관리자 3종 항상 ON) [6] notices.target_roles TEXT[] 컬럼 추가(migration_v11) — 빈 배열=전체공개, 특정 역할 지정 가능 [7] NoticeFormPage: 공개 대상 선택 UI(전체/메이드/시설 토글), 편집 시 기존 target_roles 로드 [8] NoticeListPage: 관리자=전체, 그 외=target_roles 클라이언트 필터 [9] NoticeDetailPage: target_roles 접근 권한 체크(차단 시 목록 리다이렉트) [10] useNotificationStore·NotificationDrawer: userRole 파라미터 추가, 공지 뱃지도 target_roles 필터 [11] 인스펙션 기본상태 완료 추가, 객실하자 검색 구분/위치/분류/내용 확장, 직원목록 아이콘 전화/문자 버튼 [12] 시설오더 오더종류로 구분 통합(공용부·시설 선택시 객실번호 숨김), 인스펙션 사진 카메라 전용 |

@@ -151,6 +151,10 @@ Deno.serve(async (req) => {
       webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         payload,
+        {
+          TTL: 60 * 60 * 24, // 24시간 동안 전송 재시도
+          urgency: 'high',   // 모바일 배터리 절약 모드에서도 즉시 알림 우선권 부여
+        }
       ).catch(async (err) => {
         // 410 Gone: 만료된 구독 → DB에서 삭제
         if (err.statusCode === 410) {
