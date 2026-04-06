@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ClipboardList, AlertTriangle, Wrench } from 'lucide-react'
+import { ListChecks, Bed, ConciergeBell } from 'lucide-react'
 import useAuthStore from '../../store/useAuthStore'
 
 // 탭 정의 — roles: 해당 탭이 보이는 역할 목록
@@ -7,19 +7,19 @@ const TABS = [
   {
     path: '/inspection',
     label: '인스펙션',
-    Icon: ClipboardList,
+    Icon: ListChecks,
     roles: ['admin', 'manager', 'supervisor'],
   },
   {
     path: '/defect',
     label: '객실하자',
-    Icon: AlertTriangle,
+    Icon: Bed,
     roles: ['admin', 'manager', 'supervisor', 'maid', 'facility'],
   },
   {
     path: '/facility-order',
     label: '오더',
-    Icon: Wrench,
+    Icon: ConciergeBell,
     roles: ['admin', 'manager', 'supervisor', 'maid', 'facility', 'houseman', 'front'],
   },
 ]
