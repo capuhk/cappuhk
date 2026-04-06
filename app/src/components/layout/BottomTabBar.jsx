@@ -8,7 +8,7 @@ const TABS = [
     path: '/inspection',
     label: '인스펙션',
     Icon: ClipboardList,
-    roles: ['admin', 'manager', 'supervisor', 'maid'],
+    roles: ['admin', 'manager', 'supervisor'],
   },
   {
     path: '/defect',
@@ -20,7 +20,7 @@ const TABS = [
     path: '/facility-order',
     label: '오더',
     Icon: Wrench,
-    roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'],
+    roles: ['admin', 'manager', 'supervisor', 'maid', 'facility', 'houseman', 'front'],
   },
 ]
 

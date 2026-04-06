@@ -22,6 +22,14 @@ import DashboardPage   from '../pages/DashboardPage'
 import SettingsPage    from '../pages/SettingsPage'
 import UserFormPage    from '../pages/settings/UserFormPage'
 
+// 역할별 기본 홈 경로 반환
+function DefaultRedirect() {
+  const { user, session } = useAuthStore()
+  if (!session) return <Navigate to="/login" replace />
+  const homePath = user?.role === 'maid' ? '/facility-order' : '/inspection'
+  return <Navigate to={homePath} replace />
+}
+
 // 미로그인 시 /login 리다이렉트 + MainLayout 래핑
 // noticeGuard: true이면 noticeReadRoles 정책 기반으로 접근 제어
 function ProtectedRoute({ children, excludeRoles = [], noticeGuard = false }) {
@@ -37,15 +45,18 @@ function ProtectedRoute({ children, excludeRoles = [], noticeGuard = false }) {
   if (loading && !timedOut) return null
   if (!session) return <Navigate to="/login" replace />
 
+  // 역할별 기본 홈 경로 — 메이드는 오더 페이지로
+  const homePath = user?.role === 'maid' ? '/facility-order' : '/inspection'
+
   // 특정 역할 하드코딩 차단 (설정 페이지 등)
-  if (excludeRoles.includes(user?.role)) return <Navigate to="/inspection" replace />
+  if (excludeRoles.includes(user?.role)) return <Navigate to={homePath} replace />
 
   // 게시판 접근 — 정책 로드 대기 후 판단
   if (noticeGuard && !isManager()) {
     // 정책 아직 로드 안 됨 → 대기 (null 상태)
     if (noticeReadRoles === null) return null
     // 정책 로드 완료 → 허용 여부 판단
-    if (!noticeReadRoles.includes(user?.role)) return <Navigate to="/inspection" replace />
+    if (!noticeReadRoles.includes(user?.role)) return <Navigate to={homePath} replace />
   }
 
   return <MainLayout>{children}</MainLayout>
@@ -57,13 +68,13 @@ function AppRouter() {
       {/* 인증 */}
       <Route path="/login" element={<LoginPage />} />
 
-      {/* 인스펙션 */}
-      <Route path="/inspection"            element={<ProtectedRoute><InspectionListPage /></ProtectedRoute>} />
-      <Route path="/inspection/new"        element={<ProtectedRoute><InspectionFormPage /></ProtectedRoute>} />
+      {/* 인스펙션 — 메이드 접근 불가 */}
+      <Route path="/inspection"            element={<ProtectedRoute excludeRoles={['maid']}><InspectionListPage /></ProtectedRoute>} />
+      <Route path="/inspection/new"        element={<ProtectedRoute excludeRoles={['maid']}><InspectionFormPage /></ProtectedRoute>} />
       <Route path="/inspection/settings"   element={<Navigate to="/settings" replace />} />
-      <Route path="/inspection/date/:date" element={<ProtectedRoute><InspectionListPage /></ProtectedRoute>} />
-      <Route path="/inspection/:id"        element={<ProtectedRoute><InspectionDetailPage /></ProtectedRoute>} />
-      <Route path="/inspection/:id/edit"   element={<ProtectedRoute><InspectionFormPage /></ProtectedRoute>} />
+      <Route path="/inspection/date/:date" element={<ProtectedRoute excludeRoles={['maid']}><InspectionListPage /></ProtectedRoute>} />
+      <Route path="/inspection/:id"        element={<ProtectedRoute excludeRoles={['maid']}><InspectionDetailPage /></ProtectedRoute>} />
+      <Route path="/inspection/:id/edit"   element={<ProtectedRoute excludeRoles={['maid']}><InspectionFormPage /></ProtectedRoute>} />
 
       {/* 객실하자 */}
       <Route path="/defect"               element={<ProtectedRoute><DefectListPage /></ProtectedRoute>} />
@@ -95,9 +106,9 @@ function AppRouter() {
       <Route path="/settings/users/new"          element={<ProtectedRoute><UserFormPage /></ProtectedRoute>} />
       <Route path="/settings/users/:id/edit"     element={<ProtectedRoute><UserFormPage /></ProtectedRoute>} />
 
-      {/* 기본 경로 — 로그인 후 인스펙션 목록으로 */}
-      <Route path="/" element={<Navigate to="/inspection" replace />} />
-      <Route path="*" element={<Navigate to="/inspection" replace />} />
+      {/* 기본 경로 — 역할별 홈으로 리다이렉트 */}
+      <Route path="/" element={<DefaultRedirect />} />
+      <Route path="*" element={<DefaultRedirect />} />
     </Routes>
   )
 }
