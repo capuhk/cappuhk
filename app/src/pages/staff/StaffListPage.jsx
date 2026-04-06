@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, Phone, Mail } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import useAuthStore from '../../store/useAuthStore'
 
 // 역할 한글 레이블
 const ROLE_LABEL = {
@@ -31,7 +30,6 @@ const ROLE_ORDER = { admin: 0, manager: 1, supervisor: 2, maid: 3, facility: 4, 
 
 export default function StaffListPage() {
   const navigate = useNavigate()
-  const { isManager } = useAuthStore()
 
   const [staffList, setStaffList] = useState([])
   const [loading, setLoading]     = useState(true)
@@ -60,6 +58,20 @@ export default function StaffListPage() {
     fetchStaff()
   }, [])
 
+  // ── 역할별 그룹 생성 ──────────────────────────────
+  const groups = useMemo(() => {
+    const map = {}
+    staffList.forEach((staff) => {
+      const role = staff.role || 'unknown'
+      if (!map[role]) map[role] = []
+      map[role].push(staff)
+    })
+    // 역할 우선순위 순으로 정렬된 그룹 배열 반환
+    return Object.entries(map).sort(
+      ([a], [b]) => (ROLE_ORDER[a] ?? 99) - (ROLE_ORDER[b] ?? 99)
+    )
+  }, [staffList])
+
   // ── 렌더 ─────────────────────────────────────────
   if (loading) {
     return (
@@ -70,84 +82,90 @@ export default function StaffListPage() {
   }
 
   return (
-    <div className="px-4 pt-4 pb-24">
+    <div className="px-4 pt-4 pb-24 space-y-6">
       {staffList.length === 0 && (
         <div className="flex items-center justify-center h-40">
           <p className="text-white/30 text-sm">직원 정보가 없습니다.</p>
         </div>
       )}
 
-      <div className="space-y-2">
-        {staffList.map((staff) => (
-          <button
-            key={staff.id}
-            onClick={() => navigate(`/staff/${staff.id}`)}
-            className="w-full flex items-center gap-4 px-4 py-4 bg-white/5 rounded-2xl
-              hover:bg-white/8 active:scale-[0.99] transition-all text-left"
-          >
-            {/* 아바타 */}
-            <div className="w-11 h-11 rounded-full bg-blue-500/25 flex items-center justify-center
-              shrink-0 overflow-hidden">
-              {staff.avatar_url ? (
-                <img
-                  src={staff.avatar_url}
-                  alt={staff.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-blue-300 font-bold text-base">
-                  {staff.name?.[0] ?? '?'}
-                </span>
-              )}
-            </div>
+      {groups.map(([role, members]) => (
+        <section key={role}>
+          {/* 역할 그룹 헤더 */}
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_COLOR[role] || 'bg-zinc-500/20 text-zinc-400'}`}>
+              {ROLE_LABEL[role] || role}
+            </span>
+            <span className="text-xs text-white/25">{members.length}명</span>
+          </div>
 
-            {/* 이름 + 역할 + 연락처 */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold text-white truncate">{staff.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${ROLE_COLOR[staff.role] || 'bg-zinc-500/20 text-zinc-400'}`}>
-                  {ROLE_LABEL[staff.role] || staff.role}
-                </span>
-                {staff.is_locked && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 shrink-0">
-                    잠금
-                  </span>
-                )}
-              </div>
-
-              {/* 전화·문자 아이콘 버튼 (번호 텍스트 미표시) */}
-              {staff.phone && (
-                <div className="flex items-center gap-2 mt-1">
-                  {/* 전화 걸기 */}
-                  <a
-                    href={`tel:${staff.phone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center justify-center w-7 h-7 rounded-full
-                      bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
-                    aria-label={`${staff.name}에게 전화`}
-                  >
-                    <Phone size={13} />
-                  </a>
-                  {/* 문자 보내기 */}
-                  <a
-                    href={`sms:${staff.phone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center justify-center w-7 h-7 rounded-full
-                      bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
-                    aria-label={`${staff.name}에게 문자`}
-                  >
-                    <Mail size={13} />
-                  </a>
+          {/* 직원 카드 목록 */}
+          <div className="space-y-2">
+            {members.map((staff) => (
+              <button
+                key={staff.id}
+                onClick={() => navigate(`/staff/${staff.id}`)}
+                className="w-full flex items-center gap-4 px-4 py-3.5 bg-white/5 rounded-2xl
+                  hover:bg-white/8 active:scale-[0.99] transition-all text-left"
+              >
+                {/* 아바타 */}
+                <div className="w-10 h-10 rounded-full bg-blue-500/25 flex items-center justify-center
+                  shrink-0 overflow-hidden">
+                  {staff.avatar_url ? (
+                    <img
+                      src={staff.avatar_url}
+                      alt={staff.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-blue-300 font-bold text-sm">
+                      {staff.name?.[0] ?? '?'}
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <span className="text-white/20 text-lg shrink-0">›</span>
-          </button>
-        ))}
-      </div>
+                {/* 이름 + 상태 */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-white truncate">{staff.name}</span>
+                    {staff.is_locked && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 shrink-0">
+                        잠금
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-      {/* FAB는 전역 FAB.jsx에서 처리 */}
+                {/* 전화 / 문자 버튼 */}
+                {staff.phone && (
+                  <div className="flex items-center gap-3 shrink-0">
+                    <a
+                      href={`tel:${staff.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center justify-center w-9 h-9 rounded-full
+                        bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors"
+                      aria-label={`${staff.name}에게 전화`}
+                    >
+                      <Phone size={15} />
+                    </a>
+                    <a
+                      href={`sms:${staff.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center justify-center w-9 h-9 rounded-full
+                        bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-colors"
+                      aria-label={`${staff.name}에게 문자`}
+                    >
+                      <Mail size={15} />
+                    </a>
+                  </div>
+                )}
+
+                <span className="text-white/20 text-lg shrink-0">›</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }

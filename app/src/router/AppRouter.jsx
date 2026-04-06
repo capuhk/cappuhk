@@ -22,18 +22,10 @@ import DashboardPage   from '../pages/DashboardPage'
 import SettingsPage    from '../pages/SettingsPage'
 import UserFormPage    from '../pages/settings/UserFormPage'
 
-// 임시 플레이스홀더 — 각 페이지 구현 시 교체
-const Placeholder = ({ name }) => (
-  <div className="flex items-center justify-center h-64 text-white/50">
-    <p>{name} 페이지 준비 중</p>
-  </div>
-)
-
 // 미로그인 시 /login 리다이렉트 + MainLayout 래핑
-// loadingTimeout: init()이 8초 이상 걸리면 강제로 loading 해제 (무한 스피닝 방지)
-// 특정 역할 제외 라우트 — facility는 게시판 접근 불가
-function ProtectedRoute({ children, excludeRoles = [] }) {
-  const { session, loading, user } = useAuthStore()
+// noticeGuard: true이면 noticeReadRoles 정책 기반으로 접근 제어
+function ProtectedRoute({ children, excludeRoles = [], noticeGuard = false }) {
+  const { session, loading, user, noticeReadRoles, isManager } = useAuthStore()
   const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
@@ -44,8 +36,18 @@ function ProtectedRoute({ children, excludeRoles = [] }) {
 
   if (loading && !timedOut) return null
   if (!session) return <Navigate to="/login" replace />
-  // 접근 제한 역할이면 인스펙션 목록으로 리다이렉트
+
+  // 특정 역할 하드코딩 차단 (설정 페이지 등)
   if (excludeRoles.includes(user?.role)) return <Navigate to="/inspection" replace />
+
+  // 게시판 접근 — 정책 로드 대기 후 판단
+  if (noticeGuard && !isManager()) {
+    // 정책 아직 로드 안 됨 → 대기 (null 상태)
+    if (noticeReadRoles === null) return null
+    // 정책 로드 완료 → 허용 여부 판단
+    if (!noticeReadRoles.includes(user?.role)) return <Navigate to="/inspection" replace />
+  }
+
   return <MainLayout>{children}</MainLayout>
 }
 
@@ -80,10 +82,10 @@ function AppRouter() {
 
       {/* 사이드메뉴 */}
       <Route path="/inspection-review"    element={<ProtectedRoute><InspectionReviewPage /></ProtectedRoute>} />
-      <Route path="/notice"               element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeListPage /></ProtectedRoute>} />
-      <Route path="/notice/new"           element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeFormPage /></ProtectedRoute>} />
-      <Route path="/notice/:id"           element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeDetailPage /></ProtectedRoute>} />
-      <Route path="/notice/:id/edit"      element={<ProtectedRoute excludeRoles={['houseman','front']}><NoticeFormPage /></ProtectedRoute>} />
+      <Route path="/notice"               element={<ProtectedRoute noticeGuard><NoticeListPage /></ProtectedRoute>} />
+      <Route path="/notice/new"           element={<ProtectedRoute noticeGuard><NoticeFormPage /></ProtectedRoute>} />
+      <Route path="/notice/:id"           element={<ProtectedRoute noticeGuard><NoticeDetailPage /></ProtectedRoute>} />
+      <Route path="/notice/:id/edit"      element={<ProtectedRoute noticeGuard><NoticeFormPage /></ProtectedRoute>} />
       <Route path="/staff"                element={<ProtectedRoute><StaffListPage /></ProtectedRoute>} />
       <Route path="/staff/:id"            element={<ProtectedRoute><StaffDetailPage /></ProtectedRoute>} />
       <Route path="/dashboard"            element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

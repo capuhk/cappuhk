@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import { clearAllCache } from '../utils/masterCache'
+import { clearAllCache, getMasterData, CACHE_KEYS } from '../utils/masterCache'
 import useNotificationStore from './useNotificationStore'
 
 // localStorage 키: 재진입 시 아이디 자동완성
@@ -10,10 +10,11 @@ const SAVED_ID_KEY = 'hk_saved_id'
 const isEmail = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str)
 
 const useAuthStore = create((set, get) => ({
-  user: null,     // users 테이블 프로필 (id, name, email, role, ...)
-  session: null,  // Supabase 세션 객체
-  loading: true,  // 앱 첫 로드 시 세션 복원 중 여부
-  error: null,    // 로그인 에러 메시지
+  user: null,             // users 테이블 프로필 (id, name, email, role, ...)
+  session: null,          // Supabase 세션 객체
+  loading: true,          // 앱 첫 로드 시 세션 복원 중 여부
+  error: null,            // 로그인 에러 메시지
+  noticeReadRoles: null,  // 게시판 접근 허용 역할 (null = 아직 로드 안 됨)
 
   // ─────────────────────────────────────────────
   // 앱 시작 시 호출 — 기존 세션 복원 + 세션 변경 구독
@@ -37,11 +38,21 @@ const useAuthStore = create((set, get) => ({
         clearTimeout(timer)
         if (session) set({ session })
         set({ loading: false })
-        // 프로필은 백그라운드에서 비동기 로드 (loading 해제 후 별도 진행)
+        // 프로필 + 게시판 접근 정책 백그라운드 로드 (loading 해제 후 별도 진행)
         if (session) {
           get()._fetchProfile(session.user.id).then(profile => {
             if (profile) set({ user: profile })
           })
+          // 게시판 접근 허용 역할 — masterCache 활용 (24h 캐시)
+          getMasterData(CACHE_KEYS.appPolicies).then((policies) => {
+            const found = (policies || []).find((p) => p.key === 'notice_read_roles')
+            try {
+              const roles = JSON.parse(found?.value || '[]')
+              set({ noticeReadRoles: roles })
+            } catch {
+              set({ noticeReadRoles: [] })
+            }
+          }).catch(() => set({ noticeReadRoles: [] }))
         }
       })
       .catch(() => {
@@ -136,6 +147,18 @@ const useAuthStore = create((set, get) => ({
 
     const profile = await get()._fetchProfile(data.user.id)
     set({ session: data.session, user: profile, error: null })
+
+    // 게시판 접근 정책 로드 (로그인 직후 SideMenu/Router에서 즉시 사용)
+    getMasterData(CACHE_KEYS.appPolicies).then((policies) => {
+      const found = (policies || []).find((p) => p.key === 'notice_read_roles')
+      try {
+        const roles = JSON.parse(found?.value || '[]')
+        set({ noticeReadRoles: roles })
+      } catch {
+        set({ noticeReadRoles: [] })
+      }
+    }).catch(() => set({ noticeReadRoles: [] }))
+
     return { success: true }
   },
 
@@ -152,7 +175,7 @@ const useAuthStore = create((set, get) => ({
     useNotificationStore.getState().reset()
 
     localStorage.removeItem(SAVED_ID_KEY)
-    set({ session: null, user: null, error: null })
+    set({ session: null, user: null, error: null, noticeReadRoles: null })
   },
 
   // ─────────────────────────────────────────────

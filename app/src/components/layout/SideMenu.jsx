@@ -29,10 +29,11 @@ const MAIN_TABS = [
   },
 ]
 
-// 사이드 메뉴 항목 — managerOnly: 관리자·소장·주임만 표시 / excludeRoles: 해당 역할 제외
+// 사이드 메뉴 항목 — managerOnly: 관리자·소장·주임만 표시
+// 게시판은 noticeReadRoles 정책으로 동적 제어 (하드코딩 제거)
 const MENU_ITEMS = [
   { path: '/inspection-review', label: '인스펙션조회', Icon: FileSearch, managerOnly: true },
-  { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false, excludeRoles: ['houseman', 'front'] },
+  { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false, noticeGuard: true },
   { path: '/staff',             label: '직원목록',     Icon: Users,      managerOnly: false },
   { path: '/dashboard',         label: '통계/대시보드', Icon: BarChart2,  managerOnly: true },
   { path: '/settings',          label: '설정',         Icon: Settings,   managerOnly: false, excludeRoles: ['houseman', 'front'] },
@@ -41,7 +42,7 @@ const MENU_ITEMS = [
 export default function SideMenu({ open, onClose }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout, isManager } = useAuthStore()
+  const { user, logout, isManager, noticeReadRoles } = useAuthStore()
   const [accountOpen, setAccountOpen] = useState(false)
 
   const handleNav = (path) => {
@@ -55,12 +56,18 @@ export default function SideMenu({ open, onClose }) {
     navigate('/login', { replace: true })
   }
 
+  // 게시판 접근 가능 여부 — 관리자급은 항상 허용, 그 외는 noticeReadRoles 정책 기준
+  const canAccessNotice = isManager() ||
+    (noticeReadRoles !== null && noticeReadRoles.includes(user?.role))
+
   // 권한별 메뉴 필터링
   const visibleTabs  = MAIN_TABS.filter((tab) => tab.roles.includes(user?.role))
-  const visibleItems = MENU_ITEMS.filter((item) =>
-    (!item.managerOnly || isManager()) &&
-    !item.excludeRoles?.includes(user?.role)
-  )
+  const visibleItems = MENU_ITEMS.filter((item) => {
+    if (item.managerOnly && !isManager()) return false
+    if (item.excludeRoles?.includes(user?.role)) return false
+    if (item.noticeGuard) return canAccessNotice
+    return true
+  })
 
   return (
     <>

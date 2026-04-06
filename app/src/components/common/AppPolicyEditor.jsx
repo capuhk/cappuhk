@@ -305,11 +305,13 @@ export default function AppPolicyEditor() {
             <CheckboxGroup
               policyKey="notice_read_roles"
               options={[
-                { value: 'admin',      label: '관리자', disabled: true },
-                { value: 'manager',    label: '소장',   disabled: true },
-                { value: 'supervisor', label: '주임',   disabled: true },
-                { value: 'maid',       label: '메이드', disabled: false },
-                { value: 'facility',   label: '시설',   disabled: false },
+                { value: 'admin',      label: '관리자',   disabled: true },
+                { value: 'manager',    label: '소장',     disabled: true },
+                { value: 'supervisor', label: '주임',     disabled: true },
+                { value: 'maid',       label: '메이드',   disabled: false },
+                { value: 'facility',   label: '시설',     disabled: false },
+                { value: 'houseman',   label: '하우스맨', disabled: false },
+                { value: 'front',      label: '프론트',   disabled: false },
               ]}
             />
           </div>
@@ -323,11 +325,13 @@ export default function AppPolicyEditor() {
             <CheckboxGroup
               policyKey="notice_write_roles"
               options={[
-                { value: 'admin',      label: '관리자', disabled: true },
-                { value: 'manager',    label: '소장',   disabled: true },
-                { value: 'supervisor', label: '주임',   disabled: true },
-                { value: 'maid',       label: '메이드', disabled: false },
-                { value: 'facility',   label: '시설',   disabled: false },
+                { value: 'admin',      label: '관리자',   disabled: true },
+                { value: 'manager',    label: '소장',     disabled: true },
+                { value: 'supervisor', label: '주임',     disabled: true },
+                { value: 'maid',       label: '메이드',   disabled: false },
+                { value: 'facility',   label: '시설',     disabled: false },
+                { value: 'houseman',   label: '하우스맨', disabled: false },
+                { value: 'front',      label: '프론트',   disabled: false },
               ]}
             />
           </div>
