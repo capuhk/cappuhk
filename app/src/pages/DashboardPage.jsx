@@ -207,11 +207,11 @@ export default function DashboardPage() {
     const isProcessing = processingId !== null && processingId.startsWith(`${row.id}-`)
 
     return (
-      <div className={`w-full flex items-center gap-2.5 px-3.5 py-3
-        rounded-xl transition-colors
+      <div className={`w-full flex items-center gap-2.5 px-3.5 py-3.5
+        rounded-2xl transition-all
         ${isOverDeadline(row)
-          ? 'bg-red-500/10 border border-red-500/30 hover:bg-red-500/15'
-          : 'bg-white/5 hover:bg-white/10'
+          ? 'bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 shadow-sm'
+          : 'bg-slate-900 border border-white/5 hover:bg-slate-800 shadow-sm'
         }`}>
 
         {/* 카드 본문 — 클릭 시 상세 이동 */}
@@ -342,8 +342,8 @@ export default function DashboardPage() {
               onClick={() => setOrderSubFilter(sub)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
                 ${orderSubFilter === sub
-                  ? 'bg-amber-500/30 text-amber-300'
-                  : 'bg-white/8 text-white/40 hover:bg-white/12'
+                  ? 'bg-amber-400 text-slate-950 shadow-sm'
+                  : 'bg-slate-900 border border-white/5 text-white/50 hover:bg-slate-800'
                 }`}
             >
               {sub}
@@ -356,10 +356,10 @@ export default function DashboardPage() {
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           onClick={handleAllClick}
-          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all
+          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all
             ${filterMode === 'all'
-              ? 'bg-blue-600 text-white'
-              : 'bg-white/10 text-white/50 hover:bg-white/15'
+              ? 'bg-amber-400 text-slate-950 shadow-[0_4px_12px_rgba(251,191,36,0.2)]'
+              : 'bg-slate-900 border border-white/5 text-white/50 hover:bg-slate-800'
             }`}
         >
           전체
@@ -370,10 +370,10 @@ export default function DashboardPage() {
             <button
               key={filter}
               onClick={() => handleFilterClick(filter)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all
                 ${active
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white/10 text-white/50 hover:bg-white/15'
+                  ? 'bg-amber-400 text-slate-950 shadow-[0_4px_12px_rgba(251,191,36,0.2)]'
+                  : 'bg-slate-900 border border-white/5 text-white/50 hover:bg-slate-800'
                 }`}
             >
               {TYPE_STYLE[filter]?.icon} {filter}

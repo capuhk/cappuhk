@@ -168,7 +168,7 @@ export default function DefectListPage() {
       )}
       {/* 검색바 + 기간 버튼 + 내보내기 버튼 */}
       <div className="px-4 pt-4 pb-2 flex gap-2">
-        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-white/10 rounded-xl border border-white/20">
+        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-slate-900 rounded-xl border border-white/5 shadow-sm">
           <Search size={16} className="text-white/40 shrink-0" />
           <input
             type="text"
@@ -181,10 +181,10 @@ export default function DefectListPage() {
         {/* 날짜범위 토글 버튼 */}
         <button
           onClick={() => setDateOpen((v) => !v)}
-          className={`shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors ${
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors shadow-sm ${
             dateOpen
-              ? 'bg-white/20 border-white/40 text-white'
-              : 'bg-white/10 border-white/20 text-white/50'
+              ? 'bg-slate-800 border-amber-400/50 text-white'
+              : 'bg-slate-900 border-white/5 text-white/50 hover:bg-slate-800'
           }`}
         >
           <CalendarDays size={15} />
@@ -195,7 +195,7 @@ export default function DefectListPage() {
           onClick={() => handleExport('excel')}
           disabled={exporting || filtered.length === 0}
           className="shrink-0 flex items-center px-2.5 py-2.5 rounded-xl border
-            border-white/20 bg-white/10 text-white/50 hover:bg-white/15
+            border-white/5 bg-slate-900 text-white/50 hover:bg-slate-800 shadow-sm
             disabled:opacity-30 transition-colors"
           title="엑셀 저장"
         >
@@ -206,7 +206,7 @@ export default function DefectListPage() {
           onClick={() => handleExport('print')}
           disabled={exporting || filtered.length === 0}
           className="shrink-0 flex items-center px-2.5 py-2.5 rounded-xl border
-            border-white/20 bg-white/10 text-white/50 hover:bg-white/15
+            border-white/5 bg-slate-900 text-white/50 hover:bg-slate-800 shadow-sm
             disabled:opacity-30 transition-colors"
           title="PDF 인쇄"
         >
@@ -221,26 +221,26 @@ export default function DefectListPage() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/20
-              text-white text-sm outline-none focus:border-white/40"
+            className="flex-1 px-3 py-2 bg-slate-900 rounded-xl border border-white/5
+              text-white text-sm outline-none focus:border-amber-400/50"
           />
           <span className="text-white/30 text-sm shrink-0">~</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/20
-              text-white text-sm outline-none focus:border-white/40"
+            className="flex-1 px-3 py-2 bg-slate-900 rounded-xl border border-white/5
+              text-white text-sm outline-none focus:border-amber-400/50"
           />
           <button
             onClick={() => { setDateFrom(dayjs().subtract(30, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
-            className="shrink-0 px-2.5 py-2 bg-white/10 rounded-xl border border-white/20 text-xs text-white/50 hover:bg-white/15"
+            className="shrink-0 px-2.5 py-2 bg-slate-900 rounded-xl border border-white/5 text-xs text-white/50 hover:bg-slate-800"
           >
             30일
           </button>
           <button
             onClick={() => { setDateFrom(dayjs().subtract(90, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
-            className="shrink-0 px-2.5 py-2 bg-white/10 rounded-xl border border-white/20 text-xs text-white/50 hover:bg-white/15"
+            className="shrink-0 px-2.5 py-2 bg-slate-900 rounded-xl border border-white/5 text-xs text-white/50 hover:bg-slate-800"
           >
             90일
           </button>
@@ -257,10 +257,10 @@ export default function DefectListPage() {
             <button
               key={opt}
               onClick={() => setStatusFilter(opt)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors border ${
                 statusFilter === opt
-                  ? 'bg-white text-zinc-900'
-                  : 'bg-white/10 text-white/60 hover:bg-white/15'
+                  ? 'bg-amber-400 text-slate-950 border-transparent shadow-sm'
+                  : 'bg-slate-900 border-white/5 text-white/60 hover:bg-slate-800'
               }`}
             >
               {opt}
@@ -284,7 +284,7 @@ export default function DefectListPage() {
           {rooms.map((room) => {
             const isOpen = openRooms.has(room)
             return (
-              <section key={room} className="bg-white/5 rounded-2xl overflow-hidden">
+              <section key={room} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
                 {/* 객실번호 헤더 — 아코디언 토글 */}
                 <button
                   onClick={() => toggleRoom(room)}
@@ -311,8 +311,8 @@ export default function DefectListPage() {
                       return (
                         <div
                           key={record.id}
-                          className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-white/5
-                            border border-white/8 mt-2"
+                          className="w-full flex items-center gap-2 px-3 py-3.5 rounded-2xl bg-slate-950
+                            border border-white/5 mt-2 shadow-sm transition-all hover:bg-slate-800"
                         >
                           {/* 카드 본문 — 클릭 시 상세 이동 */}
                           <button

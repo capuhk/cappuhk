@@ -163,7 +163,7 @@ export default function InspectionListPage() {
       )}
       {/* 검색바 + 날짜범위 버튼 */}
       <div className="px-4 pt-4 pb-2 flex gap-2">
-        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-white/10 rounded-xl border border-white/20">
+        <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-slate-900 rounded-xl border border-white/5 shadow-sm">
           <Search size={16} className="text-white/40 shrink-0" />
           <input
             type="text"
@@ -176,10 +176,10 @@ export default function InspectionListPage() {
         {/* 날짜범위 토글 버튼 */}
         <button
           onClick={() => setDateOpen((v) => !v)}
-          className={`shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors ${
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-sm transition-colors shadow-sm ${
             dateOpen
-              ? 'bg-white/20 border-white/40 text-white'
-              : 'bg-white/10 border-white/20 text-white/50'
+              ? 'bg-slate-800 border-amber-400/50 text-white'
+              : 'bg-slate-900 border-white/5 text-white/50 hover:bg-slate-800'
           }`}
         >
           <CalendarDays size={15} />
@@ -194,27 +194,27 @@ export default function InspectionListPage() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/20
-              text-white text-sm outline-none focus:border-white/40"
+            className="flex-1 px-3 py-2 bg-slate-900 rounded-xl border border-white/5
+              text-white text-sm outline-none focus:border-amber-400/50"
           />
           <span className="text-white/30 text-sm shrink-0">~</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="flex-1 px-3 py-2 bg-white/10 rounded-xl border border-white/20
-              text-white text-sm outline-none focus:border-white/40"
+            className="flex-1 px-3 py-2 bg-slate-900 rounded-xl border border-white/5
+              text-white text-sm outline-none focus:border-amber-400/50"
           />
           {/* 빠른 선택 버튼 */}
           <button
             onClick={() => { setDateFrom(dayjs().subtract(30, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
-            className="shrink-0 px-2.5 py-2 bg-white/10 rounded-xl border border-white/20 text-xs text-white/50 hover:bg-white/15"
+            className="shrink-0 px-2.5 py-2 bg-slate-900 rounded-xl border border-white/5 text-xs text-white/50 hover:bg-slate-800"
           >
             30일
           </button>
           <button
             onClick={() => { setDateFrom(dayjs().subtract(90, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
-            className="shrink-0 px-2.5 py-2 bg-white/10 rounded-xl border border-white/20 text-xs text-white/50 hover:bg-white/15"
+            className="shrink-0 px-2.5 py-2 bg-slate-900 rounded-xl border border-white/5 text-xs text-white/50 hover:bg-slate-800"
           >
             90일
           </button>
@@ -237,7 +237,7 @@ export default function InspectionListPage() {
             // 오늘 날짜 강조 표시
             const isToday = date === todayDate
             return (
-              <section key={date} className="bg-white/5 rounded-2xl overflow-hidden">
+              <section key={date} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
                 {/* 날짜 헤더 — 아코디언 토글 */}
                 <button
                   onClick={() => toggleDate(date)}
@@ -245,7 +245,7 @@ export default function InspectionListPage() {
                     hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-semibold ${isToday ? 'text-blue-400' : 'text-white/70'}`}>
+                    <span className={`text-sm font-semibold ${isToday ? 'text-amber-400' : 'text-white/70'}`}>
                       {dayjs(date).format('YYYY-MM-DD (ddd)')}
                       {isToday && <span className="ml-1.5 text-xs">오늘</span>}
                     </span>
@@ -269,8 +269,8 @@ export default function InspectionListPage() {
                       return (
                         <div
                           key={record.id}
-                          className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-white/5
-                            border border-white/8 mt-2"
+                          className="w-full flex items-center gap-2 px-3 py-3.5 rounded-2xl bg-slate-950
+                            border border-white/5 mt-2 shadow-sm transition-all hover:bg-slate-800"
                         >
                           {/* 카드 본문 — 클릭 시 상세 이동 */}
                           <button

@@ -36,7 +36,7 @@ export default function BottomTabBar() {
   return (
     /* safe-area-inset-bottom 로 홈 인디케이터 영역 확장 */
     <nav className="fixed bottom-0 left-0 right-0 z-40
-      bg-zinc-900 border-t border-white/10 flex flex-col lg:hidden"
+      bg-slate-950 border-t border-white/5 flex flex-col lg:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div className="flex h-16 w-full">
       {visibleTabs.map(({ path, label, Icon }) => {
@@ -46,7 +46,7 @@ export default function BottomTabBar() {
             key={path}
             onClick={() => navigate(path)}
             className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors
-              ${active ? 'text-blue-400' : 'text-white/40 hover:text-white/60'}`}
+              ${active ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]' : 'text-white/30 hover:text-white/60'}`}
           >
             <Icon size={20} strokeWidth={active ? 2.5 : 1.5} />
             <span className="text-xs font-medium">{label}</span>

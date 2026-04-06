@@ -70,7 +70,7 @@ export default function MainLayout({ children }) {
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-slate-950 text-white">
       {/* 사이드 메뉴 (PC: 항상 표시, 모바일: open 상태 기준) */}
       <SideMenu
         open={sideMenuOpen}

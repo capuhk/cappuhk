@@ -29,7 +29,7 @@ export default function AppHeader({ title, isMainTab = false, onMenuClick }) {
   }
 
   return (
-    <header className="fixed top-0 right-0 z-40 h-14 bg-zinc-900 border-b border-white/10
+    <header className="fixed top-0 right-0 z-40 h-14 bg-slate-950 border-b border-white/5
       flex items-center px-2 left-0 lg:left-60">
 
       {/* 좌측: 햄버거(메인탭) or 뒤로가기(하위화면) */}
@@ -69,7 +69,7 @@ export default function AppHeader({ title, isMainTab = false, onMenuClick }) {
           {/* 안 읽은 알림 뱃지 */}
           {unreadCount > 0 && (
             <span className="absolute top-1.5 right-1 min-w-[16px] h-4 px-0.5
-              rounded-full bg-red-500 text-white text-[10px] font-bold
+              rounded-full bg-amber-500 text-slate-900 text-[10px] font-bold
               flex items-center justify-center leading-none pointer-events-none">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
