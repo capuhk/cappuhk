@@ -57,15 +57,15 @@ export default function MainLayout({ children }) {
   const pathname = location.pathname
 
   const { user, isManager } = useAuthStore()
-  const initBadge = useNotificationStore((s) => s.initBadge)
+  const init = useNotificationStore((s) => s.init)
 
   // 현재 경로가 메인 탭(목록)인지 여부
   const isMainTab = MAIN_TAB_PATHS.some((p) => pathname === p)
 
-  // 앱 첫 마운트 시 알림 뱃지 카운트 초기화
+  // 앱 첫 마운트 시 뱃지 초기화 + Realtime 구독
   useEffect(() => {
     if (user?.id) {
-      initBadge(user.id, isManager(), user.role)
+      init(user.id, isManager(), user.role)
     }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

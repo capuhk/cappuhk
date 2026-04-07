@@ -1,6 +1,8 @@
 import { precacheAndRoute } from 'workbox-precaching'
 import { registerRoute }    from 'workbox-routing'
 import { NetworkOnly, StaleWhileRevalidate } from 'workbox-strategies'
+import { initializeApp }        from 'firebase/app'
+import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw'
 
 // ─────────────────────────────────────────────
 // Workbox 프리캐시 — Vite 빌드 시 __WB_MANIFEST 자동 주입
@@ -33,23 +35,32 @@ registerRoute(
 )
 
 // ─────────────────────────────────────────────
-// 푸시 알림 수신 — Web Push API
-//   tag를 사용하지 않아 알림이 덮어씌워지지 않고 차곡차곡 쌓임
+// FCM 초기화 — 백그라운드 푸시 수신
+//   vite-plugin-pwa injectManifest 전략으로 빌드 시 환경변수 인라인
 // ─────────────────────────────────────────────
-self.addEventListener('push', (event) => {
-  if (!event.data) return
+const firebaseApp = initializeApp({
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+})
 
-  const { title, body, url } = event.data.json()
+const messaging = getMessaging(firebaseApp)
 
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body:  body  || '',
-      icon:  '/pwa-192x192.png',
-      badge: '/pwa-192x192.png',
-      data:  { url: url || '/' },
-      // tag 없음 — 알림마다 별도 표시 (카카오톡처럼 쌓임)
-    }),
-  )
+// 백그라운드 메시지 수신 — 앱이 포그라운드가 아닐 때 FCM이 여기로 전달
+onBackgroundMessage(messaging, (payload) => {
+  const title = payload.notification?.title || payload.data?.title || '알림'
+  const body  = payload.notification?.body  || payload.data?.body  || ''
+  const url   = payload.data?.url || payload.fcmOptions?.link || '/'
+
+  self.registration.showNotification(title, {
+    body,
+    icon:  '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    data:  { url },
+  })
 })
 
 // ─────────────────────────────────────────────

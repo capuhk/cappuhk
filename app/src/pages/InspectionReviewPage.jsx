@@ -149,7 +149,8 @@ export default function InspectionReviewPage() {
 
   // ── 엑셀 출력 ────────────────────────────────
   const handleExcel = () => {
-    const sheetData = filtered.map((r) => ({
+    const sheetData = filtered.map((r, idx) => ({
+      순번:     idx + 1,
       유형:     r._type,
       객실번호: r.room_no,
       ...(r._type === '오더' ? { 시설종류: r.facility_type_name || '-' } : {}),
@@ -175,7 +176,14 @@ export default function InspectionReviewPage() {
         @media print {
           body * { visibility: hidden; }
           #print-area, #print-area * { visibility: visible; }
-          #print-area { position: absolute; top: 0; left: 0; width: 100%; }
+          #print-area {
+            position: absolute; top: 0; left: 0; width: 100%;
+            overflow: visible !important;
+          }
+          /* 테이블 컨테이너 overflow 해제 — 잘림 방지 */
+          #print-area div { overflow: visible !important; }
+          /* 행 사이 페이지 잘림 방지 */
+          #print-area tr { page-break-inside: avoid; }
           .print-hide { display: none !important; }
         }
       `}</style>
@@ -317,6 +325,11 @@ export default function InspectionReviewPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-white/10 print:border-gray-300">
+                    {/* 순번 열 */}
+                    <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
+                      whitespace-nowrap print:text-gray-600">
+                      #
+                    </th>
                     {isMultiType && (
                       <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
                         whitespace-nowrap print:text-gray-600">
@@ -342,12 +355,17 @@ export default function InspectionReviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((row) => (
+                  {filtered.map((row, idx) => (
                     <tr
                       key={`${row._type}-${row.id}`}
                       className="border-b border-white/5 hover:bg-white/5 transition-colors
                         print:border-gray-200 print:hover:bg-transparent"
                     >
+                      {/* 순번 */}
+                      <td className="py-3 px-3 text-white/30 text-xs whitespace-nowrap print:text-gray-400">
+                        {idx + 1}
+                      </td>
+
                       {/* 유형 배지 (복합 조회 시) */}
                       {isMultiType && (
                         <td className="py-3 px-3 whitespace-nowrap">
@@ -374,10 +392,10 @@ export default function InspectionReviewPage() {
                         )}
                       </td>
 
-                      {/* 특이사항 */}
-                      <td className="py-3 px-3 text-white/70 max-w-[200px] print:text-gray-700">
-                        <span className="line-clamp-2 break-all">
-                          {row.note || <span className="text-white/20">-</span>}
+                      {/* 특이사항 — 화면은 2줄 제한, 인쇄 시 전체 표시 */}
+                      <td className="py-3 px-3 text-white/70 max-w-[200px] print:text-gray-700 print:max-w-none">
+                        <span className="line-clamp-2 print:line-clamp-none break-all">
+                          {row.note || <span className="text-white/20 print:hidden">-</span>}
                         </span>
                       </td>
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import useAuthStore from '../store/useAuthStore'
-import { getPushStatus, subscribePush, unsubscribePush } from '../utils/pushSubscription'
+import { getFcmStatus, subscribeFcm, unsubscribeFcm } from '../utils/fcmToken'
 import { clearAllCache, invalidateCache, CACHE_KEYS } from '../utils/masterCache'
 import { uploadAvatar } from '../utils/imageUpload'
 import useToastStore from '../store/useToastStore'
@@ -88,7 +88,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user?.name) setMyName(user.name)
     if (user?.avatar_url) setAvatarUrl(user.avatar_url)
-    getPushStatus().then(setPushStatus)
+    if (user?.id) getFcmStatus(user.id).then(setPushStatus)
   }, [user?.name, user?.avatar_url])
 
   useEffect(() => {
@@ -173,8 +173,8 @@ export default function SettingsPage() {
   const handleTogglePush = async () => {
     setPushLoading(true)
     try {
-      if (pushStatus === 'subscribed') { await unsubscribePush(user.id); setPushStatus('unsubscribed') }
-      else { await subscribePush(user.id); setPushStatus('subscribed') }
+      if (pushStatus === 'subscribed') { await unsubscribeFcm(user.id); setPushStatus('unsubscribed') }
+      else { await subscribeFcm(user.id); setPushStatus('subscribed') }
     } catch (err) { toast(err.message, 'error') }
     finally { setPushLoading(false) }
   }

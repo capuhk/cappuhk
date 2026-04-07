@@ -8,12 +8,12 @@ import useNotificationStore from '../../store/useNotificationStore'
 // ─────────────────────────────────────────────
 // NotificationDrawer — 우측 슬라이드 알림 드로어
 //
-// 공지사항 + 시설오더(관리자) 최근 항목 표시
-// 항목 클릭 → 상세 페이지 이동 + 읽음 처리
+// 읽음 기준: store의 lastReadAt (드로어 열릴 때 DB에서 조회한 스냅샷)
+// localStorage 미사용 — 모든 상태는 DB 기준
 // ─────────────────────────────────────────────
 
 export default function NotificationDrawer() {
-  const navigate    = useNavigate()
+  const navigate = useNavigate()
   const { user, isManager } = useAuthStore()
 
   const {
@@ -21,8 +21,8 @@ export default function NotificationDrawer() {
     items,
     unreadCount,
     loading,
+    lastReadAt,
     closeDrawer,
-    markRead,
     markAllRead,
     refreshItems,
   } = useNotificationStore()
@@ -41,21 +41,11 @@ export default function NotificationDrawer() {
 
   const userId = user?.id
 
-  // 현재 읽지 않은 항목 판단 (initTime 이전은 읽은 것으로 간주)
-  const initTime = userId
-    ? localStorage.getItem(`notif_init_${userId}`) || ''
-    : ''
-  const readIds = (() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(`notif_read_${userId}`) || '[]'))
-    } catch { return new Set() }
-  })()
+  // lastReadAt 이후 등록된 항목 = 읽지 않음
+  const isUnread = (item) => lastReadAt ? item.created_at > lastReadAt : false
 
-  const isUnread = (item) => item.created_at > initTime && !readIds.has(item.id)
-
-  // ── 항목 클릭 → 이동 + 읽음 ──────────────────
+  // ── 항목 클릭 → 이동 ─────────────────────────
   const handleItemClick = (item) => {
-    if (userId) markRead(userId, item.id)
     closeDrawer()
     navigate(item.url)
   }
@@ -163,7 +153,7 @@ export default function NotificationDrawer() {
                       </p>
                     </div>
 
-                    {/* 안 읽음 점 */}
+                    {/* 읽지 않음 점 */}
                     {unread && (
                       <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 mt-2" />
                     )}
