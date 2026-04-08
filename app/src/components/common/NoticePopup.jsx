@@ -104,7 +104,7 @@ export default function NoticePopup() {
 
       {/* 팝업 — 화면 너비 70% */}
       <div className="fixed inset-0 z-[60] flex items-center justify-center">
-        <div className="w-[70vw] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+        <div className="min-w-[320px] w-[70vw] max-w-lg bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
           {/* 헤더 */}
           <div className="flex items-center gap-2 px-5 py-4 border-b border-white/10 bg-amber-500/10">
