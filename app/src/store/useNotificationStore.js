@@ -14,6 +14,17 @@ import { supabase } from '../lib/supabase'
 //   - NULL이면 첫 로그인 → now()로 초기화 (뱃지 폭탄 방지)
 // ─────────────────────────────────────────────
 
+// ── 홈화면 앱 아이콘 뱃지 갱신 헬퍼 ─────────────
+// Web App Badging API — 미지원 브라우저는 조용히 무시
+const setNativeBadge = (count) => {
+  if (!('setAppBadge' in navigator)) return
+  if (count > 0) {
+    navigator.setAppBadge(count).catch(() => {})
+  } else {
+    navigator.clearAppBadge().catch(() => {})
+  }
+}
+
 const useNotificationStore = create((set, get) => ({
   items:       [],
   unreadCount: 0,
@@ -45,6 +56,7 @@ const useNotificationStore = create((set, get) => ({
         .from('users')
         .update({ notif_last_read_at: new Date().toISOString() })
         .eq('id', userId)
+      setNativeBadge(0)
       set({ unreadCount: 0 })
       return
     }
@@ -72,6 +84,7 @@ const useNotificationStore = create((set, get) => ({
       orderCount = count || 0
     }
 
+    setNativeBadge(noticeCount + orderCount)
     set({ unreadCount: noticeCount + orderCount })
   },
 
@@ -137,6 +150,7 @@ const useNotificationStore = create((set, get) => ({
       .update({ notif_last_read_at: now })
       .eq('id', userId)
 
+    setNativeBadge(0)
     set({ items: [], unreadCount: 0, lastReadAt: now })
   },
 
@@ -219,11 +233,12 @@ const useNotificationStore = create((set, get) => ({
       .from('notification_reads')
       .upsert({ user_id: userId, item_id: itemId }, { onConflict: 'user_id,item_id' })
 
-    // 목록에서 즉시 제거
-    set((s) => ({
-      items:       s.items.filter((i) => i.id !== itemId),
-      unreadCount: Math.max(0, s.unreadCount - 1),
-    }))
+    // 목록에서 즉시 제거 + 홈화면 뱃지 갱신
+    set((s) => {
+      const next = Math.max(0, s.unreadCount - 1)
+      setNativeBadge(next)
+      return { items: s.items.filter((i) => i.id !== itemId), unreadCount: next }
+    })
   },
 
   // ── 항목 새로고침 ─────────────────────────────
