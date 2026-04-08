@@ -163,23 +163,29 @@ const useNotificationStore = create((set, get) => ({
       })
     }
 
-    // 관리자: 접수대기 오더 최근 20개
+    // 관리자: 접수대기(신규) + 완료 오더 — lastReadAt 이후 최근 20개
     if (isManager) {
       const { data: orders } = await supabase
         .from('facility_orders')
-        .select('id, room_no, facility_type_name, created_at')
-        .eq('status', '접수대기')
-        .order('created_at', { ascending: false })
+        .select('id, room_no, location_type, facility_type_name, status, created_at, updated_at')
+        .in('status', ['접수대기', '완료'])
+        .order('updated_at', { ascending: false })
         .limit(20)
 
       for (const o of orders || []) {
+        const isComplete = o.status === '완료'
+        // 완료 오더는 updated_at 기준, 신규는 created_at 기준
+        const eventTime = isComplete ? o.updated_at : o.created_at
+        const location  = o.room_no ? `${o.room_no}호` : (o.location_type || '')
+        const label     = isComplete ? `[완료] ${location} ${o.facility_type_name || ''}`.trim()
+                                     : `[오더] ${location} ${o.facility_type_name || ''}`.trim()
         items.push({
-          id:         `fo_${o.id}`,
+          id:         `fo_${o.id}_${o.status}`,
           rawId:      o.id,
-          type:       'facility_order',
-          title:      `[오더] ${o.room_no ? o.room_no + '호 ' : ''}${o.facility_type_name || ''}`.trim(),
+          type:       isComplete ? 'facility_order_complete' : 'facility_order',
+          title:      label,
           url:        `/facility-order/${o.id}`,
-          created_at: o.created_at,
+          created_at: eventTime,
         })
       }
     }

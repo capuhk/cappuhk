@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { X, Bell, RefreshCw, Loader2, Megaphone, Wrench } from 'lucide-react'
+import { X, Bell, RefreshCw, Loader2, Megaphone, Wrench, CheckCircle } from 'lucide-react'
 import dayjs from 'dayjs'
 import useAuthStore from '../../store/useAuthStore'
 import useNotificationStore from '../../store/useNotificationStore'
@@ -129,16 +129,20 @@ export default function NotificationDrawer() {
                       transition-colors hover:bg-white/5 active:bg-white/8
                       ${unread ? 'bg-white/[0.03]' : ''}`}
                   >
-                    {/* 아이콘 */}
+                    {/* 아이콘 — 공지/오더신규/오더완료 구분 */}
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5
                       ${item.type === 'notice'
                         ? 'bg-amber-500/15 text-amber-400'
-                        : 'bg-blue-500/15 text-blue-400'
+                        : item.type === 'facility_order_complete'
+                          ? 'bg-emerald-500/15 text-emerald-400'
+                          : 'bg-blue-500/15 text-blue-400'
                       }`}
                     >
                       {item.type === 'notice'
                         ? <Megaphone size={14} />
-                        : <Wrench size={14} />
+                        : item.type === 'facility_order_complete'
+                          ? <CheckCircle size={14} />
+                          : <Wrench size={14} />
                       }
                     </div>
 
