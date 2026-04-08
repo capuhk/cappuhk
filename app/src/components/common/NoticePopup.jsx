@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Pin, X, ChevronRight } from 'lucide-react'
+import { Pin, ChevronRight } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
@@ -102,31 +102,31 @@ export default function NoticePopup() {
       {/* 배경 오버레이 */}
       <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm" />
 
-      {/* 팝업 */}
-      <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
-        <div className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      {/* 팝업 — 화면 너비 70% */}
+      <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div className="w-[70vw] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
 
           {/* 헤더 */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-amber-500/10">
-            <Pin size={14} className="text-amber-400 shrink-0" />
-            <span className="text-xs font-semibold text-amber-400 flex-1">공지사항</span>
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-white/10 bg-amber-500/10">
+            <Pin size={18} className="text-amber-400 shrink-0" />
+            <span className="text-base font-bold text-amber-400 flex-1">공지사항</span>
             {/* 큐 남은 개수 표시 */}
             {queue.length > 0 && (
-              <span className="text-xs text-white/30">+{queue.length}개 더</span>
+              <span className="text-sm text-white/40">+{queue.length}개 더</span>
             )}
           </div>
 
           {/* 본문 */}
-          <div className="px-4 py-4">
-            <p className="text-sm font-semibold text-white leading-snug">
+          <div className="px-5 py-5">
+            <p className="text-lg font-bold text-white leading-snug">
               {current.title}
             </p>
-            <p className="text-xs text-white/40 mt-1">
+            <p className="text-sm text-white/40 mt-1.5">
               {dayjs(current.created_at).format('YYYY.MM.DD')}
             </p>
-            {/* 내용 미리보기 — 최대 3줄 */}
+            {/* 내용 미리보기 — 최대 4줄 */}
             {current.content && (
-              <p className="text-sm text-white/60 mt-3 leading-relaxed line-clamp-3 whitespace-pre-line">
+              <p className="text-base text-white/70 mt-4 leading-relaxed line-clamp-4 whitespace-pre-line">
                 {current.content}
               </p>
             )}
@@ -137,11 +137,11 @@ export default function NoticePopup() {
             {/* 상세 보기 */}
             <button
               onClick={handleDetail}
-              className="flex-1 flex items-center justify-center gap-1 py-3
-                text-sm text-blue-400 hover:bg-white/5 transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 py-4
+                text-base text-blue-400 hover:bg-white/5 transition-colors"
             >
               상세 보기
-              <ChevronRight size={14} />
+              <ChevronRight size={16} />
             </button>
 
             <div className="w-px bg-white/10" />
@@ -150,7 +150,7 @@ export default function NoticePopup() {
             <button
               onClick={handleConfirm}
               disabled={loading}
-              className="flex-1 py-3 text-sm font-medium text-white
+              className="flex-1 py-4 text-base font-semibold text-white
                 hover:bg-white/5 transition-colors disabled:opacity-50"
             >
               확인
