@@ -352,29 +352,29 @@ export default function InspectionReviewPage() {
                   <tr className="border-b border-white/10 print:border-gray-300">
                     {/* 순번 열 */}
                     <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
-                      whitespace-nowrap print:text-gray-600">
+                      whitespace-nowrap align-middle print:text-gray-600">
                       #
                     </th>
                     {isMultiType && (
                       <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
-                        whitespace-nowrap print:text-gray-600">
+                        whitespace-nowrap align-middle print:text-gray-600">
                         유형
                       </th>
                     )}
                     <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
-                      whitespace-nowrap print:text-gray-600">
+                      whitespace-nowrap align-middle print:text-gray-600">
                       객실번호
                     </th>
                     <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
-                      print:text-gray-600">
+                      align-middle print:text-gray-600">
                       특이사항
                     </th>
                     <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
-                      whitespace-nowrap print:text-gray-600">
+                      whitespace-nowrap align-middle print:text-gray-600">
                       작성자
                     </th>
                     <th className="py-3 px-3 text-left text-xs text-white/40 font-medium
-                      whitespace-nowrap print:text-gray-600">
+                      whitespace-nowrap align-middle print:text-gray-600">
                       등록시간
                     </th>
                   </tr>
