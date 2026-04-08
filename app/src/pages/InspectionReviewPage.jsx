@@ -189,13 +189,13 @@ export default function InspectionReviewPage() {
 
           /* A4 꽉차게 — 폰트 축소 + 행 높이 압축 */
           #print-area table { font-size: 9pt !important; width: 100%; table-layout: fixed; }
-          #print-area th, #print-area td { padding: 3px 4px !important; line-height: 1.3 !important; }
+          #print-area th, #print-area td { padding: 3px 6px !important; line-height: 1.4 !important; word-break: break-all; }
 
-          /* 컬럼 너비 — 특이사항 넓게 */
+          /* 컬럼 너비 — 특이사항이 나머지 공간 차지 (합계 100%) */
           #print-area col.col-no     { width: 5%; }
-          #print-area col.col-type   { width: 8%; }
-          #print-area col.col-room   { width: 12%; }
-          #print-area col.col-note   { width: auto; }
+          #print-area col.col-type   { width: 9%; }
+          #print-area col.col-room   { width: 11%; }
+          #print-area col.col-note   { width: 57%; }
           #print-area col.col-author { width: 10%; }
           #print-area col.col-time   { width: 8%; }
         }
