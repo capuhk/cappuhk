@@ -4,13 +4,14 @@ import { getMessaging } from 'firebase/messaging'
 // ─────────────────────────────────────────────
 // Firebase 앱 초기화 — .env.local 값 사용
 // ─────────────────────────────────────────────
+// Firebase 공개 설정값 — 클라이언트 번들에 포함되는 값이므로 하드코딩 무방
 const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey:            'AIzaSyBRQ3ec21jUW8s3MJWGJKq7_EZxbXPii0o',
+  authDomain:        'hk-fcm.firebaseapp.com',
+  projectId:         'hk-fcm',
+  storageBucket:     'hk-fcm.firebasestorage.app',
+  messagingSenderId: '345097497214',
+  appId:             '1:345097497214:web:c23c0c76cccd9e070f462f',
 }
 
 export const firebaseApp = initializeApp(firebaseConfig)
