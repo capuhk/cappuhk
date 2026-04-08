@@ -189,7 +189,7 @@ export default function InspectionReviewPage() {
 
           /* A4 꽉차게 — 폰트 축소 + 행 높이 압축 */
           #print-area table { font-size: 9pt !important; width: 100%; table-layout: fixed; }
-          #print-area th, #print-area td { padding: 3px 6px !important; line-height: 1.4 !important; word-break: break-all; }
+          #print-area th, #print-area td { padding: 3px 6px !important; line-height: 1.4 !important; word-break: break-all; vertical-align: middle !important; }
 
           /* 컬럼 너비 — 특이사항이 나머지 공간 차지 (합계 100%) */
           #print-area col.col-no     { width: 5%; }
