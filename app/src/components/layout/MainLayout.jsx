@@ -5,6 +5,7 @@ import BottomTabBar from './BottomTabBar'
 import SideMenu from './SideMenu'
 import FAB from './FAB'
 import NotificationDrawer from './NotificationDrawer'
+import NoticePopup from '../common/NoticePopup'
 import useAuthStore from '../../store/useAuthStore'
 import useNotificationStore from '../../store/useNotificationStore'
 
@@ -121,6 +122,9 @@ export default function MainLayout({ children }) {
 
       {/* 알림 드로어 (전역) */}
       <NotificationDrawer />
+
+      {/* 공지 팝업 (미확인 is_pinned 공지) */}
+      <NoticePopup />
     </div>
   )
 }
