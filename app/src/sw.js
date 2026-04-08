@@ -50,11 +50,20 @@ const firebaseApp = initializeApp({
 
 const messaging = getMessaging(firebaseApp)
 
+// SW 스코프 뱃지 카운터 — SW 재시작 시 초기화되나 앱 열 때 DB로 재동기화됨
+let _bgBadgeCount = 0
+
 // 백그라운드 메시지 수신 — 앱이 포그라운드가 아닐 때 FCM이 여기로 전달
 onBackgroundMessage(messaging, (payload) => {
   const title = payload.notification?.title || payload.data?.title || '알림'
   const body  = payload.notification?.body  || payload.data?.body  || ''
   const url   = payload.data?.url || payload.fcmOptions?.link || '/'
+
+  // 홈화면 아이콘 뱃지 +1 (앱 포그라운드 복귀 시 DB 기준으로 재동기화됨)
+  _bgBadgeCount += 1
+  if ('setAppBadge' in navigator) {
+    navigator.setAppBadge(_bgBadgeCount).catch(() => {})
+  }
 
   self.registration.showNotification(title, {
     body,
