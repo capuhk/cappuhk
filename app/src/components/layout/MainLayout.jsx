@@ -57,15 +57,33 @@ export default function MainLayout({ children }) {
   const pathname = location.pathname
 
   const { user, isManager } = useAuthStore()
-  const init = useNotificationStore((s) => s.init)
+  const init           = useNotificationStore((s) => s.init)
+  const _refreshBadge  = useNotificationStore((s) => s._refreshBadge)
 
   // 현재 경로가 메인 탭(목록)인지 여부
   const isMainTab = MAIN_TAB_PATHS.some((p) => pathname === p)
 
   // 앱 첫 마운트 시 뱃지 초기화 + Realtime 구독
   useEffect(() => {
-    if (user?.id) {
-      init(user.id, isManager(), user.role)
+    if (!user?.id) return
+    init(user.id, isManager(), user.role)
+
+    // Realtime 누락 대비 — 탭 포커스 시 뱃지 재조회
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') {
+        _refreshBadge(user.id, isManager(), user.role)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+
+    // 60초 폴링 폴백 — Realtime 이벤트 누락 시 최대 1분 내 반영
+    const timer = setInterval(() => {
+      _refreshBadge(user.id, isManager(), user.role)
+    }, 60_000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible)
+      clearInterval(timer)
     }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
