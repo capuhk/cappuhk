@@ -174,6 +174,7 @@ export default function InspectionReviewPage() {
     <>
       <style>{`
         @media print {
+          @page { size: A4 portrait; margin: 10mm 8mm; }
           body * { visibility: hidden; }
           #print-area, #print-area * { visibility: visible; }
           #print-area {
@@ -185,6 +186,18 @@ export default function InspectionReviewPage() {
           /* 행 사이 페이지 잘림 방지 */
           #print-area tr { page-break-inside: avoid; }
           .print-hide { display: none !important; }
+
+          /* A4 꽉차게 — 폰트 축소 + 행 높이 압축 */
+          #print-area table { font-size: 9pt !important; width: 100%; table-layout: fixed; }
+          #print-area th, #print-area td { padding: 3px 4px !important; line-height: 1.3 !important; }
+
+          /* 컬럼 너비 — 특이사항 넓게 */
+          #print-area col.col-no     { width: 5%; }
+          #print-area col.col-type   { width: 8%; }
+          #print-area col.col-room   { width: 12%; }
+          #print-area col.col-note   { width: auto; }
+          #print-area col.col-author { width: 10%; }
+          #print-area col.col-time   { width: 8%; }
         }
       `}</style>
 
@@ -323,6 +336,14 @@ export default function InspectionReviewPage() {
           {!loading && filtered.length > 0 && (
             <div className="overflow-x-auto rounded-xl">
               <table className="w-full text-sm border-collapse">
+                <colgroup>
+                  <col className="col-no" />
+                  {isMultiType && <col className="col-type" />}
+                  <col className="col-room" />
+                  <col className="col-note" />
+                  <col className="col-author" />
+                  <col className="col-time" />
+                </colgroup>
                 <thead>
                   <tr className="border-b border-white/10 print:border-gray-300">
                     {/* 순번 열 */}

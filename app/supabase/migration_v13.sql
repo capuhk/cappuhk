@@ -14,15 +14,11 @@ CREATE TABLE IF NOT EXISTS fcm_tokens (
 
 ALTER TABLE fcm_tokens ENABLE ROW LEVEL SECURITY;
 
--- 본인 토큰만 등록/삭제 가능
+-- 본인 토큰만 등록/삭제 가능 (users.id = auth.uid() 구조)
 CREATE POLICY "본인 FCM 토큰 관리" ON fcm_tokens
   FOR ALL TO authenticated
-  USING (
-    user_id = (SELECT id FROM users WHERE auth_uid = auth.uid())
-  )
-  WITH CHECK (
-    user_id = (SELECT id FROM users WHERE auth_uid = auth.uid())
-  );
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 -- 알림 마지막 읽음 시각 — 뱃지 카운트 기준점 (NULL = 첫 로그인)
 ALTER TABLE users
