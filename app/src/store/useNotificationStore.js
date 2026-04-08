@@ -116,30 +116,45 @@ const useNotificationStore = create((set, get) => ({
   // ── 드로어 닫기 ──────────────────────────────
   closeDrawer: () => set({ drawerOpen: false }),
 
-  // ── 전체 읽음 처리 — notif_last_read_at 업데이트 ──
+  // ── 전체 읽음 처리 — 현재 목록 전체 notification_reads에 삽입 후 목록 비우기 ──
   markAllRead: async (userId) => {
+    const { items } = get()
     const now = new Date().toISOString()
+
+    // 현재 목록의 모든 항목을 읽음 처리 (upsert — 중복 무시)
+    if (items.length > 0) {
+      await supabase
+        .from('notification_reads')
+        .upsert(
+          items.map((item) => ({ user_id: userId, item_id: item.id })),
+          { onConflict: 'user_id,item_id' },
+        )
+    }
+
+    // notif_last_read_at도 갱신 (뱃지 기준선)
     await supabase
       .from('users')
       .update({ notif_last_read_at: now })
       .eq('id', userId)
-    set({ unreadCount: 0, lastReadAt: now })
+
+    set({ items: [], unreadCount: 0, lastReadAt: now })
   },
 
   // ── 드로어 항목 로드 (내부) ────────────────────
   _fetchItems: async (userId, isManager, userRole) => {
     set({ loading: true })
 
-    // 읽음 기준점 스냅샷 — 드로어 열릴 때 조회
-    const { data: userData } = await supabase
-      .from('users')
-      .select('notif_last_read_at')
-      .eq('id', userId)
-      .single()
+    // 읽음 기준점 스냅샷 + 개별 읽음 목록 — 병렬 조회
+    const [{ data: userData }, { data: readData }] = await Promise.all([
+      supabase.from('users').select('notif_last_read_at').eq('id', userId).single(),
+      supabase.from('notification_reads').select('item_id').eq('user_id', userId),
+    ])
     const lastReadAt = userData?.notif_last_read_at || null
+    // 이미 읽은 item_id 세트 — 목록에서 제외
+    const readSet = new Set((readData || []).map((r) => r.item_id))
     set({ lastReadAt })
 
-    const items = []
+    const allItems = []
 
     // 공지(is_pinned=true) 최근 20개
     const { data: noticeData } = await supabase
@@ -153,7 +168,7 @@ const useNotificationStore = create((set, get) => ({
       isManager || !n.target_roles?.length || n.target_roles.includes(userRole)
     )
     for (const n of notices) {
-      items.push({
+      allItems.push({
         id:         `notice_${n.id}`,
         rawId:      n.id,
         type:       'notice',
@@ -163,7 +178,7 @@ const useNotificationStore = create((set, get) => ({
       })
     }
 
-    // 관리자: 접수대기(신규) + 완료 오더 — lastReadAt 이후 최근 20개
+    // 관리자: 접수대기(신규) + 완료 오더 최근 20개
     if (isManager) {
       const { data: orders } = await supabase
         .from('facility_orders')
@@ -179,7 +194,7 @@ const useNotificationStore = create((set, get) => ({
         const location  = o.room_no ? `${o.room_no}호` : (o.location_type || '')
         const label     = isComplete ? `[완료] ${location} ${o.facility_type_name || ''}`.trim()
                                      : `[오더] ${location} ${o.facility_type_name || ''}`.trim()
-        items.push({
+        allItems.push({
           id:         `fo_${o.id}_${o.status}`,
           rawId:      o.id,
           type:       isComplete ? 'facility_order_complete' : 'facility_order',
@@ -190,8 +205,25 @@ const useNotificationStore = create((set, get) => ({
       }
     }
 
-    items.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    allItems.sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+    // 이미 읽은 항목 제외
+    const items = allItems.filter((item) => !readSet.has(item.id))
     set({ items, loading: false })
+  },
+
+  // ── 개별 항목 읽음 처리 ───────────────────────
+  markRead: async (userId, itemId) => {
+    // DB에 읽음 기록 저장 (중복 무시)
+    await supabase
+      .from('notification_reads')
+      .upsert({ user_id: userId, item_id: itemId }, { onConflict: 'user_id,item_id' })
+
+    // 목록에서 즉시 제거
+    set((s) => ({
+      items:       s.items.filter((i) => i.id !== itemId),
+      unreadCount: Math.max(0, s.unreadCount - 1),
+    }))
   },
 
   // ── 항목 새로고침 ─────────────────────────────

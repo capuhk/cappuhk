@@ -23,6 +23,7 @@ export default function NotificationDrawer() {
     loading,
     lastReadAt,
     closeDrawer,
+    markRead,
     markAllRead,
     refreshItems,
   } = useNotificationStore()
@@ -44,8 +45,9 @@ export default function NotificationDrawer() {
   // lastReadAt 이후 등록된 항목 = 읽지 않음
   const isUnread = (item) => lastReadAt ? item.created_at > lastReadAt : false
 
-  // ── 항목 클릭 → 이동 ─────────────────────────
+  // ── 항목 클릭 → 읽음 처리 후 이동 ──────────────
   const handleItemClick = (item) => {
+    if (userId) markRead(userId, item.id)
     closeDrawer()
     navigate(item.url)
   }
