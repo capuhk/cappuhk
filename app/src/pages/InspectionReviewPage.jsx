@@ -317,7 +317,11 @@ export default function InspectionReviewPage() {
         {/* 출력 영역 */}
         <div id="print-area">
           <div className="hidden print:block mb-4">
-            <h1 className="text-lg font-bold">인스펙션조회</h1>
+            <div className="flex items-baseline justify-between">
+              <h1 className="text-lg font-bold">인스펙션조회</h1>
+              {/* 총 수량 — 인쇄 시 상단 표시 */}
+              <span className="text-sm font-semibold text-gray-700">총 {filtered.length}건</span>
+            </div>
             <p className="text-sm text-gray-500">{selectedDate} 기준 / {dayjs().format('YYYY년 M월 D일')} 출력</p>
           </div>
 
@@ -383,7 +387,7 @@ export default function InspectionReviewPage() {
                         print:border-gray-200 print:hover:bg-transparent"
                     >
                       {/* 순번 */}
-                      <td className="py-3 px-3 text-white/30 text-xs whitespace-nowrap print:text-gray-400">
+                      <td className="py-3 px-3 text-white/30 text-xs whitespace-nowrap align-middle print:text-gray-400">
                         {idx + 1}
                       </td>
 
@@ -403,7 +407,7 @@ export default function InspectionReviewPage() {
                       )}
 
                       {/* 객실번호 */}
-                      <td className="py-3 px-3 text-white font-semibold whitespace-nowrap
+                      <td className="py-3 px-3 text-white font-semibold whitespace-nowrap align-middle
                         print:text-black">
                         {row.room_no}
                         {row._type === '오더' && (
@@ -414,19 +418,19 @@ export default function InspectionReviewPage() {
                       </td>
 
                       {/* 특이사항 — 화면은 2줄 제한, 인쇄 시 전체 표시 */}
-                      <td className="py-3 px-3 text-white/70 max-w-[200px] print:text-gray-700 print:max-w-none">
-                        <span className="line-clamp-2 print:line-clamp-none break-all">
+                      <td className="py-3 px-3 text-white/70 max-w-[200px] align-middle print:text-gray-700 print:max-w-none">
+                        <span className="line-clamp-2 print:line-clamp-none break-words">
                           {row.note || <span className="text-white/20 print:hidden">-</span>}
                         </span>
                       </td>
 
                       {/* 작성자 */}
-                      <td className="py-3 px-3 text-white/70 whitespace-nowrap print:text-gray-700">
+                      <td className="py-3 px-3 text-white/70 whitespace-nowrap align-middle print:text-gray-700">
                         {row.author?.name || '-'}
                       </td>
 
                       {/* 등록시간 */}
-                      <td className="py-3 px-3 text-white/50 whitespace-nowrap print:text-gray-600">
+                      <td className="py-3 px-3 text-white/50 whitespace-nowrap align-middle print:text-gray-600">
                         {dayjs(row.created_at).format('HH:mm')}
                       </td>
                     </tr>
