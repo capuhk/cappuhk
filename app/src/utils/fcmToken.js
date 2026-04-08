@@ -41,10 +41,15 @@ export const subscribeFcm = async (userId) => {
   const registration = await navigator.serviceWorker.ready
   const messaging    = getFirebaseMessaging()
 
-  const token = await getToken(messaging, {
-    vapidKey:                  VAPID_KEY,
-    serviceWorkerRegistration: registration,
-  })
+  let token
+  try {
+    token = await getToken(messaging, {
+      vapidKey:                  VAPID_KEY,
+      serviceWorkerRegistration: registration,
+    })
+  } catch (err) {
+    throw new Error(`FCM 토큰 발급 실패: ${err?.message || err}`)
+  }
   if (!token) throw new Error('FCM 토큰 발급에 실패했습니다.')
 
   const deviceName = navigator.userAgent.includes('iPhone')  ? 'iPhone'

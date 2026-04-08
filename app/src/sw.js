@@ -38,13 +38,14 @@ registerRoute(
 // FCM 초기화 — 백그라운드 푸시 수신
 //   vite-plugin-pwa injectManifest 전략으로 빌드 시 환경변수 인라인
 // ─────────────────────────────────────────────
+// SW에서는 import.meta.env 미지원 → 공개값 직접 작성
 const firebaseApp = initializeApp({
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey:            'AIzaSyBRQ3ec21jUW8s3MJWGJKq7_EZxbXPii0o',
+  authDomain:        'hk-fcm.firebaseapp.com',
+  projectId:         'hk-fcm',
+  storageBucket:     'hk-fcm.firebasestorage.app',
+  messagingSenderId: '345097497214',
+  appId:             '1:345097497214:web:c23c0c76cccd9e070f462f',
 })
 
 const messaging = getMessaging(firebaseApp)
