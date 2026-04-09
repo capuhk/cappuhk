@@ -108,7 +108,7 @@ export default function MainLayout({ children }) {
         {/* 본문 — 헤더(56px + 상단 safe area) + 하단탭(64px+safe-area) 높이 확보 */}
         <main className="lg:pb-0 min-h-screen"
           style={{
-            paddingTop: 'calc(3.5rem + var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px)))',
+            paddingTop: 'calc(3.5rem + var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, env(safe-area-inset-top, 0px)))',
             paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
           }}>
           <div className="max-w-[680px] mx-auto lg:max-w-none">
