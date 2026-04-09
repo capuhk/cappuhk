@@ -107,6 +107,20 @@ export default function LoginPage() {
     const { success } = await login(id, pin)
 
     if (success) {
+      // 텔레그램 미니앱 환경이면 telegram_id / telegram_chat_id 연동 저장
+      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user
+      if (tgUser?.id) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          await supabase
+            .from('users')
+            .update({
+              telegram_id:      tgUser.id,
+              telegram_chat_id: String(tgUser.id),
+            })
+            .eq('id', session.user.id)
+        }
+      }
       navigate('/inspection', { replace: true })
     } else {
       setPin('')

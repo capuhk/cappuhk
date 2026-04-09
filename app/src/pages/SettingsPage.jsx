@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Loader2, ChevronRight, ChevronDown, ChevronUp,
   UserX, UserCheck, Unlock, KeyRound,
-  Bell, BellOff, Plus, Trash2, Zap, Camera,
+  Bell, BellOff, Plus, Trash2, Zap, Camera, Send,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import useAuthStore from '../store/useAuthStore'
@@ -57,6 +57,9 @@ export default function SettingsPage() {
   const [pinMsg, setPinMsg]         = useState(null)
   const [pushStatus, setPushStatus]   = useState('unsubscribed')
   const [pushLoading, setPushLoading] = useState(false)
+  // 텔레그램 연동 상태
+  const [tgLinked, setTgLinked]       = useState(!!user?.telegram_id)
+  const [tgUnlinking, setTgUnlinking] = useState(false)
 
   // ── 호텔/객실 ─────────────────────────────────
   const [rooms, setRooms]               = useState([])
@@ -177,6 +180,24 @@ export default function SettingsPage() {
       else { await subscribeFcm(user.id); setPushStatus('subscribed') }
     } catch (err) { toast(err.message, 'error') }
     finally { setPushLoading(false) }
+  }
+
+  // ── 텔레그램 연동 해제 ────────────────────────
+  const handleTgUnlink = async () => {
+    setTgUnlinking(true)
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ telegram_id: null, telegram_chat_id: null })
+        .eq('id', user.id)
+      if (error) throw error
+      setTgLinked(false)
+      toast('텔레그램 연동이 해제되었습니다.', 'success')
+    } catch {
+      toast('연동 해제 중 오류가 발생했습니다.', 'error')
+    } finally {
+      setTgUnlinking(false)
+    }
   }
 
   // ── 오더 알람 카테고리별 ON/OFF 토글 (관리자급 전용) ──
@@ -532,6 +553,43 @@ export default function SettingsPage() {
                       : <><BellOff size={14} /> 꺼짐</>
                   }
                 </button>
+              </div>
+            </section>
+
+            {/* 텔레그램 연동 */}
+            <section>
+              <h2 className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-3">텔레그램</h2>
+              <div className="bg-white/5 rounded-2xl px-4 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Send size={16} className={tgLinked ? 'text-blue-400' : 'text-white/30'} />
+                  <div>
+                    <p className="text-sm text-white/80">텔레그램 알림</p>
+                    <p className="text-xs text-white/35 mt-0.5">
+                      {tgLinked ? '연동됨 — 봇으로 알림 수신 중' : '미연동 — 봇에서 /start 후 로그인하면 자동 연동'}
+                    </p>
+                  </div>
+                </div>
+                {tgLinked ? (
+                  <button
+                    onClick={handleTgUnlink}
+                    disabled={tgUnlinking}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                      bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all disabled:opacity-40"
+                  >
+                    {tgUnlinking ? <Loader2 size={12} className="animate-spin" /> : '연동 해제'}
+                  </button>
+                ) : (
+                  <a
+                    href="https://t.me/kkamong_bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                      bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-all"
+                  >
+                    봇 열기
+                    <ChevronRight size={12} />
+                  </a>
+                )}
               </div>
             </section>
 

@@ -6,6 +6,9 @@ import useNotificationStore from './useNotificationStore'
 // localStorage 키: 재진입 시 아이디 자동완성
 const SAVED_ID_KEY = 'hk_saved_id'
 
+// Supabase URL (텔레그램 자동 로그인 Edge Function 호출용)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+
 // 이메일 형식 여부 판별 (관리자 vs 일반직원 구분)
 const isEmail = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str)
 
@@ -34,8 +37,40 @@ const useAuthStore = create((set, get) => ({
 
     // getSession()으로 즉시 세션 복원 — valid token이면 네트워크 불필요
     supabase.auth.getSession()
-      .then(({ data: { session } }) => {
+      .then(async ({ data: { session } }) => {
         clearTimeout(timer)
+
+        // 기존 세션 없고 텔레그램 미니앱 환경이면 자동 로그인 시도
+        if (!session) {
+          const initData = sessionStorage.getItem('tg_init_data')
+          if (initData) {
+            try {
+              const res = await fetch(
+                `${SUPABASE_URL}/functions/v1/telegram-auth`,
+                {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body:    JSON.stringify({ initData }),
+                },
+              )
+              const json = await res.json()
+              if (json.status === 'ok' && json.token_hash) {
+                // magiclink 토큰으로 세션 획득
+                const { data: otpData } = await supabase.auth.verifyOtp({
+                  token_hash: json.token_hash,
+                  type:       'email',
+                })
+                if (otpData?.session) {
+                  session = otpData.session
+                }
+              }
+              // status === 'not_linked' → 기존 PIN 로그인으로 진행
+            } catch {
+              // 텔레그램 자동 로그인 실패 → PIN 로그인으로 fallback
+            }
+          }
+        }
+
         if (session) set({ session })
         set({ loading: false })
         // 프로필 + 게시판 접근 정책 백그라운드 로드 (loading 해제 후 별도 진행)
@@ -99,7 +134,7 @@ const useAuthStore = create((set, get) => ({
     try {
       const { data } = await supabase
         .from('users')
-        .select('id, name, email, role, avatar_url, is_locked, is_active, push_room_order, push_facility_order, push_common_order')
+        .select('id, name, email, role, avatar_url, is_locked, is_active, push_room_order, push_facility_order, push_common_order, telegram_id, telegram_chat_id')
         .eq('id', userId)
         .single()
       return data

@@ -212,6 +212,48 @@ Deno.serve(async (req) => {
   const failed = results.filter((r) => r.status === 'rejected').length
   console.log(`[send-push] FCM sent=${sent}, failed=${failed}`)
 
+  // ── 텔레그램 병행 발송 ────────────────────────
+  const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
+  const appUrl   = Deno.env.get('APP_URL') || ''
+
+  if (botToken) {
+    // 대상 역할 중 telegram_chat_id 있는 사용자 조회
+    const { data: tgUsers } = await supabaseAdmin
+      .from('users')
+      .select('telegram_chat_id')
+      .in('role', roles)
+      .eq('is_active', true)
+      .not('telegram_chat_id', 'is', null)
+
+    if (tgUsers?.length) {
+      const tgApi = `https://api.telegram.org/bot${botToken}/sendMessage`
+      const msgText = `🔔 ${title}${body ? `\n${body}` : ''}`
+
+      await Promise.allSettled(
+        tgUsers.map(({ telegram_chat_id }: { telegram_chat_id: string }) =>
+          fetch(tgApi, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id:      telegram_chat_id,
+              text:         msgText,
+              // 앱에서 확인 버튼 — url이 있을 때만 표시
+              ...(url && appUrl ? {
+                reply_markup: {
+                  inline_keyboard: [[{
+                    text:    '앱에서 확인',
+                    web_app: { url: `${appUrl}${url}` },
+                  }]],
+                },
+              } : {}),
+            }),
+          })
+        ),
+      )
+      console.log(`[send-push] Telegram sent=${tgUsers.length}`)
+    }
+  }
+
   return new Response(JSON.stringify({ sent, failed }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })

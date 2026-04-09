@@ -16,6 +16,11 @@ if (tg) {
   tg.expand()                          // 최대 높이 확장
   tg.requestFullscreen?.()             // Bot API 8.0+ 완전 풀스크린
   tg.disableVerticalSwipes?.()         // 아래로 스와이프 닫힘 방지
+
+  // initData를 sessionStorage에 저장 → useAuthStore.init()에서 자동 로그인 시도
+  if (tg.initData) {
+    sessionStorage.setItem('tg_init_data', tg.initData)
+  }
 }
 
 createRoot(document.getElementById('root')).render(
