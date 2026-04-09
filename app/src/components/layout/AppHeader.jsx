@@ -29,8 +29,11 @@ export default function AppHeader({ title, isMainTab = false, onMenuClick }) {
   }
 
   return (
-    <header className="fixed top-0 right-0 z-40 h-14 bg-slate-950 border-b border-white/5
-      flex items-center px-2 left-0 lg:left-60">
+    <header className="fixed top-0 right-0 z-40 bg-slate-950 border-b border-white/5
+      flex flex-col left-0 lg:left-60"
+      style={{ paddingTop: 'var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px))' }}>
+      {/* 텔레그램/PWA 상단 안전영역 — 상태바·헤더 버튼 겹침 방지 */}
+      <div className="h-14 flex items-center px-2 w-full">
 
       {/* 좌측: 햄버거(메인탭) or 뒤로가기(하위화면) */}
       <button
@@ -83,6 +86,7 @@ export default function AppHeader({ title, isMainTab = false, onMenuClick }) {
         >
           나가기
         </button>
+      </div>
       </div>
     </header>
   )
