@@ -21,6 +21,20 @@ if (tg) {
   if (tg.initData) {
     sessionStorage.setItem('tg_init_data', tg.initData)
   }
+
+  // 텔레그램 헤더 영역 safe area를 CSS 변수로 설정
+  // safeAreaInset / contentSafeAreaInset은 Bot API 8.0+ 에서만 제공
+  // 없으면 fullscreen 모드 기준 기본값 52px 사용
+  const setTgInset = () => {
+    const safeTop    = tg.safeAreaInset?.top         ?? 0
+    const contentTop = tg.contentSafeAreaInset?.top  ?? 52  // 텔레그램 헤더바 기본 높이
+    document.documentElement.style.setProperty('--tg-safe-area-inset-top',         `${safeTop}px`)
+    document.documentElement.style.setProperty('--tg-content-safe-area-inset-top', `${contentTop}px`)
+  }
+  setTgInset()
+  // 풀스크린 전환 후 값이 바뀔 수 있으므로 이벤트에도 반영
+  tg.onEvent?.('safeAreaChanged',        setTgInset)
+  tg.onEvent?.('contentSafeAreaChanged', setTgInset)
 }
 
 createRoot(document.getElementById('root')).render(
