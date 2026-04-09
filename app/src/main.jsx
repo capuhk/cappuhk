@@ -17,8 +17,11 @@ if (tg?.initData) {
   tg.expand()
   tg.disableVerticalSwipes?.()
 
-  // requestFullscreen — 구버전(6.0 등)에서 내부 에러 throw 가능하므로 try-catch
-  try { tg.requestFullscreen?.() } catch { /* 미지원 버전 무시 */ }
+  // requestFullscreen — Bot API 8.0+ 에서만 지원, 버전 체크 후 호출
+  const tgVersion = parseFloat(tg.version || '0')
+  if (tgVersion >= 8.0) {
+    try { tg.requestFullscreen() } catch { /* 예외 무시 */ }
+  }
 
   // initData를 sessionStorage에 저장 → useAuthStore.init()에서 자동 로그인 시도
   sessionStorage.setItem('tg_init_data', tg.initData)
