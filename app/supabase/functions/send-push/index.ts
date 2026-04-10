@@ -76,13 +76,8 @@ Deno.serve(async (req) => {
     return new Response('Method Not Allowed', { status: 405, headers: corsHeaders })
   }
 
-  // FCM 서비스 계정 JSON 확인
+  // FCM 서비스 계정 JSON (없으면 FCM 발송 건너뜀 — 텔레그램은 독립 실행)
   const serviceAccountJson = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON')
-  if (!serviceAccountJson) {
-    return new Response(JSON.stringify({ error: 'FCM_SERVICE_ACCOUNT_JSON 미설정' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
 
   // ── 호출자 인증 ───────────────────────────────
   const authHeader = req.headers.get('Authorization')
@@ -137,82 +132,74 @@ Deno.serve(async (req) => {
       supabaseAdmin.from('users').select('id').in('role', roles).eq('is_active', true),
     )
 
-  if (tokenErr) {
-    console.error('[send-push] 토큰 조회 오류:', tokenErr.message)
-    return new Response(JSON.stringify({ error: tokenErr.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
+  // ── FCM 발송 (serviceAccountJson 있을 때만) ──────
+  let sent = 0, failed = 0
 
-  if (!tokens?.length) {
-    return new Response(JSON.stringify({ sent: 0 }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
-  }
-
-  // ── 관리자 알람 OFF인 토큰 제외 ──────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let filteredTokens: any[] = tokens
-  if (prefCol && filteredTokens.length > 0) {
-    const managerIds = filteredTokens.map((t: { user_id: string }) => t.user_id)
-    const { data: prefs } = await supabaseAdmin
-      .from('users')
-      .select(`id, ${prefCol}`)
-      .in('id', managerIds)
-      .in('role', MANAGER_ROLES)
-    if (prefs) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const disabledIds = new Set(prefs.filter((u: any) => u[prefCol] === false).map((u: any) => u.id as string))
-      if (disabledIds.size > 0) {
-        filteredTokens = filteredTokens.filter((t: { user_id: string }) => !disabledIds.has(t.user_id))
+  if (serviceAccountJson && !tokenErr && tokens?.length) {
+    // 관리자 알람 OFF인 토큰 제외
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let filteredTokens: any[] = tokens
+    if (prefCol && filteredTokens.length > 0) {
+      const managerIds = filteredTokens.map((t: { user_id: string }) => t.user_id)
+      const { data: prefs } = await supabaseAdmin
+        .from('users')
+        .select(`id, ${prefCol}`)
+        .in('id', managerIds)
+        .in('role', MANAGER_ROLES)
+      if (prefs) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const disabledIds = new Set(prefs.filter((u: any) => u[prefCol] === false).map((u: any) => u.id as string))
+        if (disabledIds.size > 0) {
+          filteredTokens = filteredTokens.filter((t: { user_id: string }) => !disabledIds.has(t.user_id))
+        }
       }
     }
+
+    const accessToken = await getFcmAccessToken(serviceAccountJson)
+    const projectId   = JSON.parse(serviceAccountJson).project_id
+    const fcmUrl      = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
+
+    const results = await Promise.allSettled(
+      filteredTokens.map(async (sub: { token: string; user_id: string }) => {
+        const res = await fetch(fcmUrl, {
+          method:  'POST',
+          headers: {
+            Authorization:  `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: {
+              token: sub.token,
+              notification: { title, body: body || '' },
+              webpush: {
+                fcm_options:  { link: url || '/' },
+                notification: { icon: '/pwa-192x192.png', badge: '/pwa-192x192.png' },
+              },
+            },
+          }),
+        })
+
+        if (!res.ok) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const errData: any = await res.json()
+          // 토큰 만료(NOT_FOUND) → DB에서 삭제
+          if (res.status === 404 || errData?.error?.status === 'NOT_FOUND') {
+            await supabaseAdmin.from('fcm_tokens').delete().eq('token', sub.token)
+          }
+          throw new Error(`FCM error: ${JSON.stringify(errData)}`)
+        }
+        return res.json()
+      }),
+    )
+
+    sent   = results.filter((r) => r.status === 'fulfilled').length
+    failed = results.filter((r) => r.status === 'rejected').length
+    console.log(`[send-push] FCM sent=${sent}, failed=${failed}`)
+  } else {
+    console.log('[send-push] FCM 건너뜀 (서비스 계정 미설정 또는 토큰 없음)')
   }
 
-  // ── FCM OAuth2 액세스 토큰 발급 ──────────────────
-  const accessToken = await getFcmAccessToken(serviceAccountJson)
-  const projectId   = JSON.parse(serviceAccountJson).project_id
-  const fcmUrl      = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
-
-  // ── 각 토큰에 FCM 메시지 발송 ────────────────────
-  const results = await Promise.allSettled(
-    filteredTokens.map(async (sub: { token: string; user_id: string }) => {
-      const res = await fetch(fcmUrl, {
-        method:  'POST',
-        headers: {
-          Authorization:  `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: {
-            token: sub.token,
-            notification: { title, body: body || '' },
-            webpush: {
-              fcm_options:  { link: url || '/' },
-              notification: { icon: '/pwa-192x192.png', badge: '/pwa-192x192.png' },
-            },
-          },
-        }),
-      })
-
-      if (!res.ok) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const errData: any = await res.json()
-        // 토큰 만료(NOT_FOUND) → DB에서 삭제
-        if (res.status === 404 || errData?.error?.status === 'NOT_FOUND') {
-          await supabaseAdmin.from('fcm_tokens').delete().eq('token', sub.token)
-        }
-        throw new Error(`FCM error: ${JSON.stringify(errData)}`)
-      }
-      return res.json()
-    }),
-  )
-
-  const sent   = results.filter((r) => r.status === 'fulfilled').length
-  const failed = results.filter((r) => r.status === 'rejected').length
-  console.log(`[send-push] FCM sent=${sent}, failed=${failed}`)
-
-  // ── 텔레그램 병행 발송 ────────────────────────
+  // ── 텔레그램 병행 발송 (FCM 여부와 독립 실행) ────
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
   const appUrl   = Deno.env.get('APP_URL') || ''
 

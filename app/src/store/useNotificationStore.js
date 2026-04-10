@@ -73,15 +73,23 @@ const useNotificationStore = create((set, get) => ({
       isManager || !n.target_roles?.length || n.target_roles.includes(userRole)
     ).length
 
-    // 관리자: 접수대기 오더 카운트
+    // 관리자: 접수대기(신규) + 완료 오더 카운트
+    // 완료 오더는 updated_at 기준 (status 변경 시각)
     let orderCount = 0
     if (isManager) {
-      const { count } = await supabase
-        .from('facility_orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', '접수대기')
-        .gt('created_at', lastReadAt)
-      orderCount = count || 0
+      const [{ count: newCount }, { count: doneCount }] = await Promise.all([
+        supabase
+          .from('facility_orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', '접수대기')
+          .gt('created_at', lastReadAt),
+        supabase
+          .from('facility_orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', '완료')
+          .gt('updated_at', lastReadAt),
+      ])
+      orderCount = (newCount || 0) + (doneCount || 0)
     }
 
     setNativeBadge(noticeCount + orderCount)
@@ -103,6 +111,16 @@ const useNotificationStore = create((set, get) => ({
         () => {
           // 새 오더 등록 → 뱃지 재조회
           get()._refreshBadge(userId, isManager, userRole)
+        },
+      )
+      .on(
+        'postgres_changes',
+        // 완료 처리는 UPDATE 이벤트 — 뱃지 재조회
+        { event: 'UPDATE', schema: 'public', table: 'facility_orders' },
+        (payload) => {
+          if (payload.new?.status === '완료') {
+            get()._refreshBadge(userId, isManager, userRole)
+          }
         },
       )
       .on(
