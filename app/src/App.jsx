@@ -9,6 +9,20 @@ function App() {
   const init = useAuthStore((s) => s.init)
 
   useEffect(() => {
+    // 텔레그램 미니앱 환경일 경우 풀스크린 변환 (바텀시트 방지)
+    // main.jsx의 tg?.initData 블록과 별개로, App 마운트 시점에도 재호출
+    // (키보드 web_app 버튼으로 열릴 때 expand/fullscreen 보장)
+    const tgApp = window.Telegram?.WebApp
+    if (tgApp) {
+      tgApp.ready()
+      tgApp.expand()
+      tgApp.disableVerticalSwipes?.()
+      const ver = parseFloat(tgApp.version || '0')
+      if (ver >= 8.0) {
+        try { tgApp.requestFullscreen() } catch { /* 예외 무시 */ }
+      }
+    }
+
     // 앱 첫 마운트 시 Supabase 세션 복원
     // init()은 onAuthStateChange 구독 해제 함수를 반환
     const cleanup = init()

@@ -29,7 +29,7 @@ if (tg?.initData) {
   // 텔레그램 헤더 safe area를 CSS 변수로 설정
   const setTgInset = () => {
     const safeTop    = tg.safeAreaInset?.top        ?? 0
-    const contentTop = tg.contentSafeAreaInset?.top ?? 52  // 헤더바 기본 높이
+    const contentTop = tg.contentSafeAreaInset?.top || 52  // 헤더바 기본 높이
     document.documentElement.style.setProperty('--tg-safe-area-inset-top',         `${safeTop}px`)
     document.documentElement.style.setProperty('--tg-content-safe-area-inset-top', `${contentTop}px`)
   }
