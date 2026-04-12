@@ -224,10 +224,11 @@ export default function DefectFormPage() {
         // 완료 상태로 변경 시 관리자·소장·주임에게 푸시 발송
         if (status === '완료') {
           sendPush({
-            roles: ['admin', 'manager', 'supervisor'],
-            title: `[${roomNo}] 하자 완료`,
-            body:  [division, locations_sel.join('·')].filter(Boolean).join(' — '),
-            url:   `/defect/${id}`,
+            roles:     ['admin', 'manager', 'supervisor'],
+            title:     `[${roomNo}] 하자 완료`,
+            body:      [division, locations_sel.join('·')].filter(Boolean).join(' — '),
+            url:       `/defect/${id}`,
+            orderType: '시설',  // 관리자 알람 OFF 필터링 적용
           })
         }
 

@@ -204,40 +204,64 @@ Deno.serve(async (req) => {
   const appUrl   = Deno.env.get('APP_URL') || ''
 
   if (botToken) {
-    // 대상 역할 중 telegram_chat_id 있는 사용자 조회
-    const { data: tgUsers } = await supabaseAdmin
+    // 대상 역할의 telegram_chat_id / telegram_group_id 조회
+    // prefCol이 있으면 관리자 알람 OFF 사용자 제외 (FCM과 동일한 필터링)
+    let tgQuery = supabaseAdmin
       .from('users')
-      .select('telegram_chat_id')
+      .select(`id, role, telegram_chat_id, telegram_group_id${prefCol ? `, ${prefCol}` : ''}`)
       .in('role', roles)
       .eq('is_active', true)
-      .not('telegram_chat_id', 'is', null)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tgUsers } = await tgQuery as { data: any[] | null }
 
     if (tgUsers?.length) {
-      const tgApi = `https://api.telegram.org/bot${botToken}/sendMessage`
-      const msgText = `🔔 ${title}${body ? `\n${body}` : ''}`
+      // 관리자 알람 OFF인 사용자 제외 (prefCol 있을 때만)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filteredTgUsers = prefCol
+        ? tgUsers.filter((u: any) =>
+            !MANAGER_ROLES.includes(u.role) || u[prefCol] !== false
+          )
+        : tgUsers
 
-      await Promise.allSettled(
-        tgUsers.map(({ telegram_chat_id }: { telegram_chat_id: string }) =>
-          fetch(tgApi, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id:      telegram_chat_id,
-              text:         msgText,
-              // 앱에서 확인 버튼 — url이 있을 때만 표시
-              ...(url && appUrl ? {
-                reply_markup: {
-                  inline_keyboard: [[{
-                    text:    '앱에서 확인',
-                    web_app: { url: `${appUrl}${url}` },
-                  }]],
-                },
-              } : {}),
-            }),
-          })
-        ),
-      )
-      console.log(`[send-push] Telegram sent=${tgUsers.length}`)
+      const tgApi    = `https://api.telegram.org/bot${botToken}/sendMessage`
+      const msgText  = `🔔 ${title}${body ? `\n${body}` : ''}`
+      // 앱에서 확인 버튼 payload
+      const replyMarkup = url && appUrl ? {
+        reply_markup: {
+          inline_keyboard: [[{
+            text:    '앱에서 확인',
+            web_app: { url: `${appUrl}${url}` },
+          }]],
+        },
+      } : {}
+
+      // ① 개인 DM 발송 (telegram_chat_id 있는 사용자)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dmTargets = filteredTgUsers.filter((u: any) => u.telegram_chat_id)
+      // ② 그룹 발송 — 고유 telegram_group_id만 추려서 1회씩 발송 (중복 방지)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const groupIds = [...new Set(
+        filteredTgUsers
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((u: any) => u.telegram_group_id)
+          .filter(Boolean)
+      )] as string[]
+
+      const sendMsg = (chatId: string) =>
+        fetch(tgApi, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: msgText, ...replyMarkup }),
+        })
+
+      await Promise.allSettled([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...dmTargets.map((u: any) => sendMsg(u.telegram_chat_id)),
+        ...groupIds.map((gid) => sendMsg(gid)),
+      ])
+
+      console.log(`[send-push] Telegram DM=${dmTargets.length}, Group=${groupIds.length}`)
     }
   }
 

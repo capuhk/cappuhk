@@ -234,10 +234,11 @@ export default function FacilityOrderDetailPage() {
 
       // 3. 관리자·소장·주임에게 이관 알림 푸시
       sendPush({
-        roles: ['admin', 'manager', 'supervisor'],
-        title: `[🚨시설이관] ${record.room_no}호`,
-        body:  `${division} — ${location}${record.note ? ` (${record.note})` : ''}`,
-        url:   `/defect/${newDefectId}`,
+        roles:     ['admin', 'manager', 'supervisor'],
+        title:     `[🚨시설이관] ${record.room_no}호`,
+        body:      `${division} — ${location}${record.note ? ` (${record.note})` : ''}`,
+        url:       `/defect/${newDefectId}`,
+        orderType: '시설',  // 관리자 알람 OFF 필터링 적용
       })
 
       navigate(`/defect/${newDefectId}`, { replace: true })

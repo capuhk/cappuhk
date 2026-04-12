@@ -58,8 +58,12 @@ export default function SettingsPage() {
   const [pushStatus, setPushStatus]   = useState('unsubscribed')
   const [pushLoading, setPushLoading] = useState(false)
   // 텔레그램 연동 상태
-  const [tgLinked, setTgLinked]       = useState(!!user?.telegram_id)
-  const [tgUnlinking, setTgUnlinking] = useState(false)
+  const [tgLinked, setTgLinked]         = useState(!!user?.telegram_id)
+  const [tgUnlinking, setTgUnlinking]   = useState(false)
+  // 텔레그램 그룹 채팅 ID (팀 공유 그룹에 알림 발송)
+  const [tgGroupId, setTgGroupId]       = useState(user?.telegram_group_id || '')
+  const [savingGroup, setSavingGroup]   = useState(false)
+  const [groupMsg, setGroupMsg]         = useState(null)
 
   // ── 호텔/객실 ─────────────────────────────────
   const [rooms, setRooms]               = useState([])
@@ -180,6 +184,24 @@ export default function SettingsPage() {
       else { await subscribeFcm(user.id); setPushStatus('subscribed') }
     } catch (err) { toast(err.message, 'error') }
     finally { setPushLoading(false) }
+  }
+
+  // ── 텔레그램 그룹 채팅 ID 저장 ──────────────────
+  const handleSaveGroupId = async () => {
+    setSavingGroup(true)
+    setGroupMsg(null)
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ telegram_group_id: tgGroupId.trim() || null })
+        .eq('id', user.id)
+      if (error) throw error
+      setGroupMsg({ type: 'success', text: '저장되었습니다.' })
+    } catch {
+      setGroupMsg({ type: 'error', text: '저장 중 오류가 발생했습니다.' })
+    } finally {
+      setSavingGroup(false)
+    }
   }
 
   // ── 텔레그램 연동 해제 ────────────────────────
@@ -589,6 +611,36 @@ export default function SettingsPage() {
                     봇 열기
                     <ChevronRight size={12} />
                   </a>
+                )}
+              </div>
+
+              {/* 그룹 채팅 ID — 팀 공유 그룹으로 알림 수신 */}
+              <div className="mt-2 bg-white/5 rounded-2xl px-4 py-4 space-y-2">
+                <p className="text-sm text-white/80">그룹 채팅 알림</p>
+                <p className="text-xs text-white/35">봇을 그룹에 추가 후 그룹 채팅 ID를 입력하면 팀 전체에 알림이 옵니다</p>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    type="text"
+                    value={tgGroupId}
+                    onChange={(e) => setTgGroupId(e.target.value)}
+                    placeholder="-1001234567890"
+                    className="flex-1 bg-white/8 rounded-lg px-3 py-2 text-sm text-white/80
+                      placeholder:text-white/20 border border-white/10 focus:border-white/30
+                      focus:outline-none"
+                  />
+                  <button
+                    onClick={handleSaveGroupId}
+                    disabled={savingGroup}
+                    className="px-3 py-2 rounded-lg text-xs font-medium bg-blue-500/20
+                      text-blue-400 hover:bg-blue-500/30 transition-all disabled:opacity-40"
+                  >
+                    {savingGroup ? <Loader2 size={12} className="animate-spin" /> : '저장'}
+                  </button>
+                </div>
+                {groupMsg && (
+                  <p className={`text-xs ${groupMsg.type === 'success' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {groupMsg.text}
+                  </p>
                 )}
               </div>
             </section>
