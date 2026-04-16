@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   room_sts_text       VARCHAR(5),                   -- 청소 상태 (VD/VI/VC/OO/OC/OD/OI)
   room_status         VARCHAR(5),                   -- 예약 상태 (RR/CI/OO/BK)
   inroom_status       VARCHAR(5),                   -- 객실 내 재실 여부 (V/I)
-  inhs_gest_name      VARCHAR(100),                 -- 투숙객 이름
+  -- inhs_gest_name 수집 제외 — 투숙객 이름은 개인정보
   arrv_date           DATE,                         -- 체크인 날짜
   dept_date           DATE,                         -- 체크아웃 날짜
   arrv_plan_time      VARCHAR(10),                  -- 체크인 예정 시간

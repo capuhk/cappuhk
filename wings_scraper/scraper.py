@@ -31,7 +31,7 @@ FIELD_MAP = {
     'ROOM_STS_TEXT':        'room_sts_text',
     'ROOM_STATUS':          'room_status',
     'INROOM_STATUS_CODE':   'inroom_status',
-    'INHS_GEST_NAME':       'inhs_gest_name',
+    # 'INHS_GEST_NAME' 수집 제외 — 투숙객 이름은 개인정보
     'ARRV_DATE':            'arrv_date',
     'DEPT_DATE':            'dept_date',
     'ARRV_PLAN_TIME':       'arrv_plan_time',

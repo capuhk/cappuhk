@@ -109,11 +109,6 @@ function RoomCard({ room }) {
         </span>
       </div>
 
-      {/* 투숙객 이름 */}
-      {room.inhs_gest_name && (
-        <p className="text-white/70 text-xs truncate mb-1">{room.inhs_gest_name}</p>
-      )}
-
       {/* 체크아웃/체크인 예정 뱃지 */}
       <div className="flex gap-1 flex-wrap">
         {isDeparting && (
@@ -125,8 +120,7 @@ function RoomCard({ room }) {
         {room.lsos_code && (
           <span className="text-xs bg-white/10 text-white/50 px-1.5 py-0.5 rounded">{room.lsos_code}</span>
         )}
-        {/* 숙박일수 */}
-        {room.nights && room.inhs_gest_name && (
+        {room.nights && (
           <span className="text-xs text-white/30">{room.nights}박</span>
         )}
       </div>
