@@ -123,14 +123,22 @@ Deno.serve(async (req) => {
   }
   const prefCol = orderType ? PREF_COL[orderType] : null
 
-  // ── 대상 FCM 토큰 조회 (역할 + 활성 계정) ────────
-  const { data: tokens, error: tokenErr } = await supabaseAdmin
-    .from('fcm_tokens')
-    .select('token, user_id')
-    .in(
-      'user_id',
-      supabaseAdmin.from('users').select('id').in('role', roles).eq('is_active', true),
-    )
+  // ── 대상 user ID 목록 먼저 조회 (서브쿼리 대신 2단계 쿼리) ──
+  const { data: targetUsers } = await supabaseAdmin
+    .from('users')
+    .select('id')
+    .in('role', roles)
+    .eq('is_active', true)
+
+  const userIds = (targetUsers || []).map((u: { id: string }) => u.id)
+
+  // ── 대상 FCM 토큰 조회 ────────────────────────────
+  const { data: tokens, error: tokenErr } = userIds.length
+    ? await supabaseAdmin
+        .from('fcm_tokens')
+        .select('token, user_id')
+        .in('user_id', userIds)
+    : { data: [], error: null }
 
   // ── FCM 발송 (serviceAccountJson 있을 때만) ──────
   let sent = 0, failed = 0

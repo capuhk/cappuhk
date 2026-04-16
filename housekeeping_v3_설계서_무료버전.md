@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-04 (게시판 권한·공개 대상 기능 추가, 하우스맨·프론트 역할 추가)
-> **버전**: v4.4 (v4.3 + 하우스맨/프론트 역할 + 게시판 권한 정책 + 공개 대상 target_roles)
+> **최종 업데이트**: 2026-04-09 (FCM 푸시 전환, 알림 읽음 DB 처리, 홈화면 뱃지, 공지 팝업)
+> **버전**: v4.5 (v4.4 + FCM HTTP v1 + notification_reads + Web App Badge API + 공지 팝업)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -1066,25 +1066,59 @@ ALTER TABLE notices         ADD COLUMN updated_by UUID REFERENCES users(id);
 | 공지사항 | 📣 Megaphone | 전 직원 | `notices` 최근 20개 |
 | 시설오더 접수대기 | 🔧 Wrench | 관리자·소장·주임만 | `facility_orders` where status='접수대기' 최근 20개 |
 
-**읽음 처리 방식:**
-- `notif_init_{userId}` (localStorage) — 최초 앱 로드 기준 시각. 이 시각 이전 항목은 자동 읽음(뱃지 폭탄 방지)
-- `notif_read_{userId}` (localStorage) — 읽은 item ID 배열 (`notice_{uuid}` / `fo_{uuid}`)
-- 앱 로드 시 `initBadge()` → `initTime` 이후 + 안 읽은 항목 수 → 헤더 뱃지
-- 드로어 항목 클릭 → `markRead()` → 뱃지 감소 → 상세 페이지 이동
-- 전체 읽음 버튼 → `markAllRead()`
+**읽음 처리 방식 (DB 기준 — localStorage 미사용):**
+- `users.notif_last_read_at` — 드로어 열릴 때 스냅샷, 뱃지 카운트 기준선
+- `notification_reads(user_id, item_id)` — 개별 항목 읽음 기록 (migration_v14)
+  - item_id 형식: `notice_{uuid}`, `fo_{uuid}_접수대기`, `fo_{uuid}_완료`, `popup_notice_{uuid}`
+- 앱 로드 시 `init()` → `_refreshBadge()` → DB 기준 unreadCount → 헤더 뱃지 + 홈화면 앱 아이콘 뱃지
+- 드로어 항목 클릭 → `markRead(userId, itemId)` → notification_reads 저장 → 목록에서 즉시 제거
+- 전체 읽음 버튼 → `markAllRead()` → 전체 upsert + notif_last_read_at 갱신 + 목록 비우기
 - 로그아웃 → `reset()` (다음 계정 오염 방지)
+- Realtime 구독 + visibilitychange + 60초 폴링으로 실시간 뱃지 갱신
+
+**드로어 항목 종류:**
+| 종류 | 아이콘 | 대상 |
+|------|--------|------|
+| 공지(is_pinned=true) | 📣 amber | 역할별 target_roles 필터 |
+| 오더 접수대기 | 🔧 blue | 관리자(admin/manager/supervisor) |
+| 오더 완료 | ✅ green | 관리자(admin/manager/supervisor) |
 
 **드로어 UX:**
 - 우측에서 슬라이드 인 (`animate-slide-in-right` 0.22s ease)
 - 배경 오버레이 클릭 → 닫힘
 - 드로어 내 새로고침 버튼 → 항목 재조회
 
-### 14.4 구 푸시 알림 명세 (미구현 — 향후 검토)
+### 14.4 FCM 푸시 알림 (구현 완료)
 
-| 이벤트 | 발송 대상 | 내용 |
-|--------|-----------|------|
-| 시설오더 신규 등록 | 시설팀 전체 | `[1602] 시설오더 — 슬라이딩도어` |
-| 공지 등록 | 주임 전체 | 실시간 팝업 (1회 확인 후 미노출) |
+**구조:** Firebase Cloud Messaging HTTP v1 API
+**토큰 저장:** `fcm_tokens(user_id, token, device_name)` (migration_v13)
+**발송:** Supabase Edge Function `send-push` — 서비스 계정 JWT → OAuth2 액세스 토큰 → FCM
+
+| 이벤트 | 발송 대상 roles | orderType |
+|--------|----------------|-----------|
+| 오더 신규등록(객실) | admin/manager/supervisor/houseman/front | 객실 |
+| 오더 신규등록(시설) | admin/manager/supervisor/facility/front | 시설 |
+| 오더 신규등록(공용부) | facility | 공용부 |
+| 오더 완료(객실/시설) | admin/manager/supervisor/houseman(facility)/front | 동일 |
+| 오더 완료(공용부) | admin/manager/supervisor | 공용부 |
+| 공지(is_pinned) 등록 | 역할별 target_roles 필터 | null |
+
+**관리자 알람 ON/OFF:** `users.push_room_order / push_facility_order / push_common_order` (migration_v12)
+
+### 14.5 홈화면 앱 아이콘 뱃지 (Web App Badging API)
+
+- `navigator.setAppBadge(count)` / `clearAppBadge()` — iOS 16.4+, Android Chrome 지원
+- 포그라운드: `_refreshBadge()` / `markRead()` / `markAllRead()` 시점에 동기화
+- 백그라운드: SW `onBackgroundMessage` 수신 시 `_bgBadgeCount +1`
+- 앱 포그라운드 복귀 시 DB 기준으로 재동기화
+
+### 14.6 공지 팝업 (NoticePopup.jsx)
+
+- 앱 진입 시 `is_pinned=true` 공지 중 `notification_reads`에 없는 것 자동 팝업
+- 확인 클릭 → `popup_notice_{id}` 형식으로 notification_reads 저장 → 재표시 안 됨
+- 미확인 공지 여러 개면 순차 표시
+- 다기기 동기화: DB 기준으로 다른 기기에서 확인 시 재표시 안 됨
+- 팝업 크기: `min-w-[320px] w-[70vw] max-w-lg`, 글씨 크기 확대 (고령자 가독성)
 
 ### iOS PWA 푸시 제약
 
@@ -1092,6 +1126,7 @@ ALTER TABLE notices         ADD COLUMN updated_by UUID REFERENCES users(id);
 |------|------|
 | iOS 최소 버전 | iOS 16.4 이상 |
 | 설치 필요 | Safari → 홈화면 추가 후에만 수신 |
+| 홈화면 뱃지 | iOS 16.4+ 지원 |
 
 ---
 
@@ -1117,8 +1152,8 @@ ALTER TABLE notices         ADD COLUMN updated_by UUID REFERENCES users(id);
 | `notices` | 게시판 글 | |
 | `notice_images` | 게시판 이미지 (thumb only) | ✅ |
 | `notice_comments` | 게시판 댓글 | ✅ |
-| `notice_reads` | 공지 확인 이력 (팝업 1회 제어) | ✅ |
-| `push_subscriptions` | PWA 푸시 구독 | |
+| `notification_reads` | 알림 개별 읽음 이력 (드로어 + 팝업 공용) | ✅ |
+| `fcm_tokens` | FCM 디바이스 토큰 | ✅ |
 | `page_settings` | 페이지별 설정 값 | |
 
 ### 15.2 DDL
@@ -1987,8 +2022,8 @@ $$ LANGUAGE SQL STABLE;
 
 | 우선순위 | 항목 | 설명 |
 |:-------:|------|------|
-| 🟢 낮음 | **설정 Placeholder 라우트 정리** | `/facility-order/settings`, `/defect/settings`, `/inspection/settings` → SettingsPage 리다이렉트 |
-| 🟢 낮음 | **UserFormPage 아바타** | 관리자가 직원 등록 시 아바타 업로드 |
+| ✅ 완료 | **설정 Placeholder 라우트 정리** | `/facility-order/settings`, `/defect/settings`, `/inspection/settings` → `<Navigate to="/settings" replace />` 처리됨 |
+| ✅ 완료 | **UserFormPage 아바타** | 관리자가 직원 등록/수정 시 아바타 업로드 (uploadAvatar + 미리보기 구현됨) |
 
 ---
 
@@ -2125,3 +2160,4 @@ $$ LANGUAGE SQL STABLE;
 | v4.2 | 2026-04-03 | 전체 아키텍처 버그 리뷰 3단계 완료 — [A] vercel.json SPA rewrite(새로고침 404), send-push CORS(VAPID 초기화 위치), overscroll-behavior-y:none(PTR 충돌), 인스펙션조회 정렬 내림차순, 로그인 step null(깜빡임) [B] 이미지 삭제 에러체크 3폼, 대시보드 완료쿼리 에러체크, useNotificationStore created_at undefined 방어 [C] RoomPicker sort_order null, ImageUploader join 의존성, useAuthStore static import, SettingsPage alert→toast 전환 |
 | v4.3 | 2026-04-04 | iOS 무한스피너 근본 수정 — [1] useAuthStore.init() INITIAL_SESSION 이벤트 → getSession() 직접 호출(내부 네트워크 hanging 제거) [2] usePullToRefresh deps에서 pullDistance/refreshing 제거→ref 사용(touchmove마다 리스너 재등록→iOS touchend 누락 방지) [3] visibilitychange 임계값 5분→2분(정확히 5분 미만 미발동 방지) [4] FAB bottom에 env(safe-area-inset-bottom) 추가(홈화면 PWA 탭바 겹침 수정) |
 | v4.4 | 2026-04-04 | 하우스맨·프론트 역할 추가 + 게시판 권한 정책 구현 — [1] migration_v10: users.role CHECK에 houseman/front 추가 [2] UserFormPage: 역할 선택에 하우스맨/프론트 추가 [3] BottomTabBar/SideMenu/FAB: houseman·front → 시설오더·직원목록만 접근 [4] AppRouter: excludeRoles 추가, 게시판·설정에서 houseman·front 차단 [5] 게시판 권한 운영 정책 — AppPolicyEditor에 notice_read_roles·notice_write_roles 체크박스 섹션 추가 (메이드·시설 동적 토글, 관리자 3종 항상 ON) [6] notices.target_roles TEXT[] 컬럼 추가(migration_v11) — 빈 배열=전체공개, 특정 역할 지정 가능 [7] NoticeFormPage: 공개 대상 선택 UI(전체/메이드/시설 토글), 편집 시 기존 target_roles 로드 [8] NoticeListPage: 관리자=전체, 그 외=target_roles 클라이언트 필터 [9] NoticeDetailPage: target_roles 접근 권한 체크(차단 시 목록 리다이렉트) [10] useNotificationStore·NotificationDrawer: userRole 파라미터 추가, 공지 뱃지도 target_roles 필터 [11] 인스펙션 기본상태 완료 추가, 객실하자 검색 구분/위치/분류/내용 확장, 직원목록 아이콘 전화/문자 버튼 [12] 시설오더 오더종류로 구분 통합(공용부·시설 선택시 객실번호 숨김), 인스펙션 사진 카메라 전용 |
+| v4.5 | 2026-04-09 | FCM 푸시 전환 + 알림 시스템 전면 개선 — [1] Firebase Cloud Messaging HTTP v1 API 전환(VAPID→FCM 서비스 계정 JWT) [2] migration_v12: users에 push_room/facility/common_order 컬럼 추가(관리자 알람 ON/OFF) [3] migration_v13: fcm_tokens 테이블 + notif_last_read_at 컬럼 + Realtime 발행 [4] migration_v14: notification_reads 테이블(드로어 개별 읽음 + 팝업 확인 공용) [5] useNotificationStore 전면 재설계 — localStorage 제거, DB 기준 뱃지, Realtime+visibilitychange+60초폴링, markRead/markAllRead notification_reads 연동 [6] Web App Badging API 연동 — 포그라운드: unreadCount 변경 시 setAppBadge, 백그라운드: SW onBackgroundMessage 시 +1 [7] 인스펙션조회 PDF — A4 40행, 순번 컬럼, 특이사항 컬럼 57% 확대 [8] NoticePopup.jsx 신규 — is_pinned 공지 앱 진입 시 팝업(notification_reads DB 기준 1회 표시, 다기기 동기화) [9] 드로어 완료 오더 표시 추가(updated_at 기준, 초록 아이콘) |

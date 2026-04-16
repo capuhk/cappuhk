@@ -40,13 +40,13 @@ const useNotificationStore = create((set, get) => ({
   },
 
   // ── DB에서 뱃지 카운트 재조회 ──────────────────
+  // notification_reads도 반영해서 개별 읽음 처리된 항목 제외
   _refreshBadge: async (userId, isManager, userRole) => {
-    // users.notif_last_read_at 조회
-    const { data: userData } = await supabase
-      .from('users')
-      .select('notif_last_read_at')
-      .eq('id', userId)
-      .single()
+    // notif_last_read_at + notification_reads 병렬 조회
+    const [{ data: userData }, { data: readData }] = await Promise.all([
+      supabase.from('users').select('notif_last_read_at').eq('id', userId).single(),
+      supabase.from('notification_reads').select('item_id').eq('user_id', userId),
+    ])
 
     const lastReadAt = userData?.notif_last_read_at
 
@@ -61,39 +61,39 @@ const useNotificationStore = create((set, get) => ({
       return
     }
 
-    // 공지(is_pinned=true) — lastReadAt 이후 등록된 것만 카운트
+    // 이미 읽은 item_id 세트
+    const readSet = new Set((readData || []).map((r) => r.item_id))
+
+    // 공지(is_pinned=true) — lastReadAt 이후, 미읽음만 카운트
     const { data: noticeData } = await supabase
       .from('notices')
       .select('id, target_roles')
       .eq('is_pinned', true)
       .gt('created_at', lastReadAt)
 
-    // 역할에 따라 볼 수 있는 공지만 필터
-    const noticeCount = (noticeData || []).filter((n) =>
-      isManager || !n.target_roles?.length || n.target_roles.includes(userRole)
-    ).length
-
-    // 관리자: 접수대기(신규) + 완료 오더 카운트
-    // 완료 오더는 updated_at 기준 (status 변경 시각)
-    let orderCount = 0
-    if (isManager) {
-      const [{ count: newCount }, { count: doneCount }] = await Promise.all([
-        supabase
-          .from('facility_orders')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', '접수대기')
-          .gt('created_at', lastReadAt),
-        supabase
-          .from('facility_orders')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', '완료')
-          .gt('updated_at', lastReadAt),
-      ])
-      orderCount = (newCount || 0) + (doneCount || 0)
+    let count = 0
+    for (const n of (noticeData || [])) {
+      if (isManager || !n.target_roles?.length || n.target_roles.includes(userRole)) {
+        if (!readSet.has(`notice_${n.id}`)) count++
+      }
     }
 
-    setNativeBadge(noticeCount + orderCount)
-    set({ unreadCount: noticeCount + orderCount })
+    // 관리자: 접수대기(신규) + 완료 오더 — 미읽음만 카운트
+    if (isManager) {
+      const [{ data: newOrders }, { data: doneOrders }] = await Promise.all([
+        supabase.from('facility_orders').select('id').eq('status', '접수대기').gt('created_at', lastReadAt),
+        supabase.from('facility_orders').select('id').eq('status', '완료').gt('updated_at', lastReadAt),
+      ])
+      for (const o of (newOrders || [])) {
+        if (!readSet.has(`fo_${o.id}_접수대기`)) count++
+      }
+      for (const o of (doneOrders || [])) {
+        if (!readSet.has(`fo_${o.id}_완료`)) count++
+      }
+    }
+
+    setNativeBadge(count)
+    set({ unreadCount: count })
   },
 
   // ── Supabase Realtime 구독 ─────────────────────
@@ -144,8 +144,22 @@ const useNotificationStore = create((set, get) => ({
     await get()._fetchItems(userId, isManager, userRole)
   },
 
-  // ── 드로어 닫기 ──────────────────────────────
-  closeDrawer: () => set({ drawerOpen: false }),
+  // ── 드로어 닫기 — notif_last_read_at 갱신으로 뱃지 초기화 ──
+  closeDrawer: async (userId) => {
+    // 즉시 UI 닫기 (낙관적 업데이트)
+    setNativeBadge(0)
+    set({ drawerOpen: false, unreadCount: 0, items: [] })
+
+    // DB 기준선 갱신 — 다음 _refreshBadge 호출 시 뱃지 0 유지
+    if (userId) {
+      const now = new Date().toISOString()
+      await supabase
+        .from('users')
+        .update({ notif_last_read_at: now })
+        .eq('id', userId)
+      set({ lastReadAt: now })
+    }
+  },
 
   // ── 전체 읽음 처리 — 현재 목록 전체 notification_reads에 삽입 후 목록 비우기 ──
   markAllRead: async (userId) => {
@@ -239,9 +253,10 @@ const useNotificationStore = create((set, get) => ({
 
     allItems.sort((a, b) => b.created_at.localeCompare(a.created_at))
 
-    // 이미 읽은 항목 제외
+    // 이미 읽은 항목 제외 + unreadCount를 실제 표시 항목 수로 동기화
     const items = allItems.filter((item) => !readSet.has(item.id))
-    set({ items, loading: false })
+    setNativeBadge(items.length)
+    set({ items, loading: false, unreadCount: items.length })
   },
 
   // ── 개별 항목 읽음 처리 ───────────────────────

@@ -62,7 +62,7 @@ export default function NotificationDrawer() {
       {/* 배경 오버레이 */}
       <div
         className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-        onClick={closeDrawer}
+        onClick={() => closeDrawer(userId)}
       />
 
       {/* 드로어 패널 */}
@@ -100,7 +100,7 @@ export default function NotificationDrawer() {
 
           {/* 닫기 */}
           <button
-            onClick={closeDrawer}
+            onClick={() => closeDrawer(userId)}
             className="w-8 h-8 flex items-center justify-center rounded-lg
               text-white/40 hover:text-white/70 hover:bg-white/10 transition-all"
           >

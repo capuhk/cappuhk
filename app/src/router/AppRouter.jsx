@@ -21,6 +21,7 @@ import StaffDetailPage from '../pages/staff/StaffDetailPage'
 import DashboardPage   from '../pages/DashboardPage'
 import SettingsPage    from '../pages/SettingsPage'
 import UserFormPage    from '../pages/settings/UserFormPage'
+import RoomDashboard   from '../pages/rooms/RoomDashboard'
 
 // 역할별 기본 홈 경로 반환
 function DefaultRedirect() {
@@ -100,6 +101,9 @@ function AppRouter() {
       <Route path="/staff"                element={<ProtectedRoute><StaffListPage /></ProtectedRoute>} />
       <Route path="/staff/:id"            element={<ProtectedRoute><StaffDetailPage /></ProtectedRoute>} />
       <Route path="/dashboard"            element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+
+      {/* 객실현황 (카푸치노 전용 — WINGS PMS 연동) */}
+      <Route path="/rooms" element={<ProtectedRoute><RoomDashboard /></ProtectedRoute>} />
 
       {/* 설정 */}
       <Route path="/settings"                    element={<ProtectedRoute excludeRoles={['houseman','front']}><SettingsPage /></ProtectedRoute>} />
