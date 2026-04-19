@@ -8,7 +8,7 @@ from config import (
     WINGS_LOGIN_URL, WINGS_URL,
     WINGS_COMPANY_ID, WINGS_ID, WINGS_PW,
     PROPERTY_NO, BSNS_CODE,
-    SCRAPE_INTERVAL,
+    SCRAPE_INTERVAL, SCRAPE_HOUR_START, SCRAPE_HOUR_END,
 )
 from supabase_client import upsert_rooms
 
@@ -187,6 +187,13 @@ async def main():
         fail_count = 0  # 연속 실패 횟수
 
         while True:
+            # 운영 시간대 체크 (SCRAPE_HOUR_START ~ SCRAPE_HOUR_END 범위 밖이면 대기)
+            current_hour = datetime.now().hour
+            if not (SCRAPE_HOUR_START <= current_hour < SCRAPE_HOUR_END):
+                logger.info(f'운영 시간 외 ({current_hour}시) — {SCRAPE_HOUR_START}시~{SCRAPE_HOUR_END}시 운영. 60초 대기...')
+                await asyncio.sleep(60)
+                continue
+
             success = await scrape_once(page)
 
             if success:

@@ -19,3 +19,7 @@ SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')  # Service Role Key
 
 # 스크래핑 간격 (초)
 SCRAPE_INTERVAL = int(os.getenv('SCRAPE_INTERVAL', '300'))  # 기본 5분
+
+# 운영 시간대 (이 범위 밖이면 대기)
+SCRAPE_HOUR_START = int(os.getenv('SCRAPE_HOUR_START', '0'))   # 기본 00시 (제한 없음)
+SCRAPE_HOUR_END   = int(os.getenv('SCRAPE_HOUR_END',   '23'))  # 기본 23시
