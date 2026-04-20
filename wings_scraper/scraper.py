@@ -243,6 +243,34 @@ async def main():
             logger.error('POST 요청 캡처 실패 — 종료')
             return
 
+        # 페이지 내 클릭 가능한 요소 목록 출력 (새로고침 버튼 찾기용)
+        print('\n=== 페이지 요소 분석 ===')
+        elements = await page.evaluate('''() => {
+            const tags = ['button','a','span','div','img','input']
+            const results = []
+            for (const tag of tags) {
+                for (const el of document.querySelectorAll(tag)) {
+                    const onclick = el.getAttribute('onclick') || ''
+                    const cls = el.className || ''
+                    const id = el.id || ''
+                    const title = el.title || ''
+                    const text = (el.innerText || '').trim().slice(0, 20)
+                    if (onclick || title.toLowerCase().includes('refresh') ||
+                        cls.toLowerCase().includes('refresh') ||
+                        cls.toLowerCase().includes('reload') ||
+                        title.toLowerCase().includes('조회') ||
+                        onclick.toLowerCase().includes('search') ||
+                        onclick.toLowerCase().includes('refresh')) {
+                        results.push(tag + ' | id=' + id + ' | class=' + cls + ' | title=' + title + ' | onclick=' + onclick.slice(0,50) + ' | text=' + text)
+                    }
+                }
+            }
+            return results
+        }''')
+        for el in elements:
+            print(el)
+        print('=== 분석 끝 ===\n')
+
         fail_count = 0  # 연속 실패 횟수
 
         while True:
