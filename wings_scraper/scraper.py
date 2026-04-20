@@ -127,9 +127,9 @@ async def fetch_room_data(page) -> list[dict]:
     # 응답 리스너 등록
     page.on('response', handle_response)
 
-    # Room Indicator 페이지로 이동 (이미 로그인된 상태)
-    logger.info(f'Room Indicator 페이지 이동: {WINGS_URL}')
-    await page.goto(WINGS_URL, wait_until='networkidle', timeout=30000)
+    # 현재 페이지 새로고침으로 데이터 재요청 (API는 POST라 goto 불가)
+    logger.info('페이지 새로고침으로 데이터 재요청')
+    await page.reload(wait_until='networkidle', timeout=30000)
 
     # 데이터 로드 대기 (최대 10초)
     for _ in range(20):
