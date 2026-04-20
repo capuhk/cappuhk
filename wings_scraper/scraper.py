@@ -104,15 +104,55 @@ async def wait_for_manual(page):
     logger.info('수집 시작')
 
 
+# 캡처된 POST 요청 정보 저장 (URL, headers, body)
+_captured_request: dict | None = None
+
+
+async def capture_request(page) -> bool:
+    """
+    첫 수동 로드 시 searchListRoomIndicator.do POST 요청을 캡처.
+    이후 replay_request()로 재실행.
+    """
+    global _captured_request
+    captured = asyncio.Event()
+
+    async def handle_request(request):
+        if 'searchListRoomIndicator.do' in request.url and request.method == 'POST':
+            global _captured_request
+            _captured_request = {
+                'url':     request.url,
+                'headers': request.headers,
+                'body':    request.post_data,
+            }
+            logger.info(f'POST 요청 캡처 완료: {request.url}')
+            captured.set()
+
+    page.on('request', handle_request)
+
+    try:
+        await asyncio.wait_for(captured.wait(), timeout=30)
+    except asyncio.TimeoutError:
+        logger.warning('POST 요청 캡처 실패 (30초 대기)')
+        return False
+    finally:
+        page.remove_listener('request', handle_request)
+
+    return True
+
+
 async def fetch_room_data(page) -> list[dict]:
     """
-    Room Indicator 페이지에서 네트워크 인터셉트로 JSON 캡처.
-    캡처된 데이터를 Supabase 형식으로 변환하여 반환.
+    캡처된 POST 요청을 재실행하여 객실 데이터 수집.
     """
+    global _captured_request
+
+    if not _captured_request:
+        logger.error('캡처된 요청 없음')
+        return []
+
     captured = []
 
     async def handle_response(response: Response):
-        # searchListRoomIndicator.do 응답만 처리
         if 'searchListRoomIndicator.do' not in response.url:
             return
         try:
@@ -124,12 +164,20 @@ async def fetch_room_data(page) -> list[dict]:
         except Exception as e:
             logger.warning(f'응답 파싱 실패: {e}')
 
-    # 응답 리스너 등록
     page.on('response', handle_response)
 
-    # 현재 페이지 새로고침으로 데이터 재요청 (API는 POST라 goto 불가)
-    logger.info('페이지 새로고침으로 데이터 재요청')
-    await page.reload(wait_until='networkidle', timeout=30000)
+    # 캡처된 POST 요청 재실행
+    logger.info('캡처된 POST 요청 재실행')
+    await page.evaluate('''
+        async ({ url, body }) => {
+            await fetch(url, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body,
+            });
+        }
+    ''', {'url': _captured_request['url'], 'body': _captured_request['body'] or ''})
 
     # 데이터 로드 대기 (최대 10초)
     for _ in range(20):
@@ -137,14 +185,12 @@ async def fetch_room_data(page) -> list[dict]:
             break
         await asyncio.sleep(0.5)
 
-    # 리스너 제거
     page.remove_listener('response', handle_response)
 
     if not captured:
-        logger.warning('객실 데이터 캡처 실패 — 응답 없음')
+        logger.warning('객실 데이터 캡처 실패')
         return []
 
-    # WINGS 형식 → Supabase 형식 변환
     return [map_room(r) for r in captured]
 
 
@@ -182,6 +228,13 @@ async def main():
 
         # 수동 로그인 + Room Indicator 이동 대기
         await wait_for_manual(page)
+
+        # 첫 POST 요청 캡처 (이후 재실행에 사용)
+        logger.info('POST 요청 캡처 중 — Room Indicator 페이지에서 데이터가 로드되길 기다립니다...')
+        ok = await capture_request(page)
+        if not ok:
+            logger.error('POST 요청 캡처 실패 — 종료')
+            return
 
         fail_count = 0  # 연속 실패 횟수
 
