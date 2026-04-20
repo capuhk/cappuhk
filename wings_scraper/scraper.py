@@ -142,14 +142,8 @@ async def capture_request(page) -> bool:
 
 async def fetch_room_data(page) -> list[dict]:
     """
-    캡처된 POST 요청을 재실행하여 객실 데이터 수집.
+    Room Indicator 페이지의 첫 번째 새로고침 버튼 클릭 → 응답 캡처.
     """
-    global _captured_request
-
-    if not _captured_request:
-        logger.error('캡처된 요청 없음')
-        return []
-
     captured = []
 
     async def handle_response(response: Response):
@@ -166,21 +160,34 @@ async def fetch_room_data(page) -> list[dict]:
 
     page.on('response', handle_response)
 
-    # 캡처된 POST 요청 재실행
-    logger.info('캡처된 POST 요청 재실행')
-    await page.evaluate('''
-        async ({ url, body }) => {
-            await fetch(url, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body,
-            });
-        }
-    ''', {'url': _captured_request['url'], 'body': _captured_request['body'] or ''})
+    # 아이콘 줄 첫 번째 버튼(새로고침) 클릭
+    # WINGS Room Indicator 상단 툴바 첫 번째 버튼
+    refresh_selectors = [
+        'button.refresh',
+        'button[title*="refresh"]',
+        'button[title*="새로고침"]',
+        'button[title*="Refresh"]',
+        '.toolbar button:first-child',
+        '.tool-bar button:first-child',
+        '.btn-refresh',
+        'span.x-btn-icon-el:first-child',
+    ]
 
-    # 데이터 로드 대기 (최대 10초)
-    for _ in range(20):
+    clicked = False
+    for selector in refresh_selectors:
+        btn = page.locator(selector)
+        if await btn.count() > 0:
+            await btn.first.click()
+            clicked = True
+            logger.info(f'새로고침 버튼 클릭: {selector}')
+            break
+
+    if not clicked:
+        logger.warning('새로고침 버튼 못 찾음 — F5 키 시도')
+        await page.keyboard.press('F5')
+
+    # 데이터 로드 대기 (최대 15초)
+    for _ in range(30):
         if captured:
             break
         await asyncio.sleep(0.5)
