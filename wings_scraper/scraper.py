@@ -1,14 +1,12 @@
 import asyncio
-import json
 import logging
 import sys
 import os
-import time
 from datetime import datetime
 
 # 스크립트 폴더를 모듈 검색 경로에 추가 (다른 위치에서 실행해도 config 임포트 가능)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from playwright.async_api import async_playwright, Response
+from playwright.async_api import async_playwright
 from config import (
     WINGS_LOGIN_URL, WINGS_URL,
     WINGS_COMPANY_ID, WINGS_ID, WINGS_PW,
@@ -142,63 +140,46 @@ async def capture_request(page) -> bool:
 
 async def fetch_room_data(page) -> list[dict]:
     """
-    Room Indicator 페이지의 첫 번째 새로고침 버튼 클릭 → 응답 캡처.
+    캡처된 POST 요청을 Playwright APIRequestContext로 직접 재실행.
+    브라우저 UI 클릭 없이 세션 쿠키를 자동 공유하여 반복 수집 가능.
     """
-    captured = []
-
-    async def handle_response(response: Response):
-        if 'searchListRoomIndicator.do' not in response.url:
-            return
-        try:
-            data = await response.json()
-            rows = data.get('rows') or data.get('list') or data.get('data') or []
-            if rows:
-                logger.info(f'객실 데이터 캡처: {len(rows)}개')
-                captured.extend(rows)
-        except Exception as e:
-            logger.warning(f'응답 파싱 실패: {e}')
-
-    page.on('response', handle_response)
-
-    # 아이콘 줄 첫 번째 버튼(새로고침) 클릭
-    # WINGS Room Indicator 상단 툴바 첫 번째 버튼
-    refresh_selectors = [
-        'button.refresh',
-        'button[title*="refresh"]',
-        'button[title*="새로고침"]',
-        'button[title*="Refresh"]',
-        '.toolbar button:first-child',
-        '.tool-bar button:first-child',
-        '.btn-refresh',
-        'span.x-btn-icon-el:first-child',
-    ]
-
-    clicked = False
-    for selector in refresh_selectors:
-        btn = page.locator(selector)
-        if await btn.count() > 0:
-            await btn.first.click()
-            clicked = True
-            logger.info(f'새로고침 버튼 클릭: {selector}')
-            break
-
-    if not clicked:
-        logger.warning('새로고침 버튼 못 찾음 — F5 키 시도')
-        await page.keyboard.press('F5')
-
-    # 데이터 로드 대기 (최대 15초)
-    for _ in range(30):
-        if captured:
-            break
-        await asyncio.sleep(0.5)
-
-    page.remove_listener('response', handle_response)
-
-    if not captured:
-        logger.warning('객실 데이터 캡처 실패')
+    global _captured_request
+    if not _captured_request:
+        logger.error('캡처된 요청 없음 — capture_request() 먼저 실행 필요')
         return []
 
-    return [map_room(r) for r in captured]
+    try:
+        # Playwright APIRequestContext는 브라우저 세션(쿠키 포함)을 자동 공유
+        response = await page.request.post(
+            _captured_request['url'],
+            data=_captured_request['body'],  # 원본 form-encoded POST body
+            headers={
+                'Content-Type': _captured_request['headers'].get(
+                    'content-type', 'application/x-www-form-urlencoded; charset=UTF-8'
+                ),
+                'Referer':    _captured_request['headers'].get('referer', ''),
+                'User-Agent': _captured_request['headers'].get('user-agent', ''),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        )
+
+        if not response.ok:
+            logger.warning(f'POST 응답 오류: {response.status}')
+            return []
+
+        data = await response.json()
+        rows = data.get('rows') or data.get('list') or data.get('data') or []
+
+        if not rows:
+            logger.warning(f'응답에 데이터 없음 — 키 목록: {list(data.keys())}')
+            return []
+
+        logger.info(f'객실 데이터 수신: {len(rows)}개')
+        return [map_room(r) for r in rows]
+
+    except Exception as e:
+        logger.error(f'fetch_room_data 실패: {e}')
+        return []
 
 
 async def scrape_once(page) -> bool:
@@ -242,34 +223,6 @@ async def main():
         if not ok:
             logger.error('POST 요청 캡처 실패 — 종료')
             return
-
-        # 페이지 내 클릭 가능한 요소 목록 출력 (새로고침 버튼 찾기용)
-        print('\n=== 페이지 요소 분석 ===')
-        elements = await page.evaluate('''() => {
-            const tags = ['button','a','span','div','img','input']
-            const results = []
-            for (const tag of tags) {
-                for (const el of document.querySelectorAll(tag)) {
-                    const onclick = el.getAttribute('onclick') || ''
-                    const cls = el.className || ''
-                    const id = el.id || ''
-                    const title = el.title || ''
-                    const text = (el.innerText || '').trim().slice(0, 20)
-                    if (onclick || title.toLowerCase().includes('refresh') ||
-                        cls.toLowerCase().includes('refresh') ||
-                        cls.toLowerCase().includes('reload') ||
-                        title.toLowerCase().includes('조회') ||
-                        onclick.toLowerCase().includes('search') ||
-                        onclick.toLowerCase().includes('refresh')) {
-                        results.push(tag + ' | id=' + id + ' | class=' + cls + ' | title=' + title + ' | onclick=' + onclick.slice(0,50) + ' | text=' + text)
-                    }
-                }
-            }
-            return results
-        }''')
-        for el in elements:
-            print(el)
-        print('=== 분석 끝 ===\n')
 
         fail_count = 0  # 연속 실패 횟수
 
