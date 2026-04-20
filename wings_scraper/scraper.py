@@ -87,7 +87,7 @@ def map_room(raw: dict) -> dict:
 async def wait_for_manual(page):
     """
     로그인 + Room Indicator 이동을 수동으로 처리.
-    터미널에서 Enter 누르면 수집 시작.
+    터미널에서 Enter 누르면 POST 리스너 등록 후 새로고침 버튼 클릭 안내.
     """
     logger.info(f'WINGS 로그인 페이지 열기: {WINGS_LOGIN_URL}')
     await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
@@ -95,13 +95,13 @@ async def wait_for_manual(page):
     print('\n============================================')
     print('  1. 브라우저에서 WINGS 로그인 완료')
     print('  2. Room Indicator 페이지로 이동')
-    print('  3. 터미널에서 Enter 를 누르면 수집 시작')
+    print('  3. 터미널에서 Enter')
+    print('  4. 브라우저에서 새로고침 버튼 클릭')
     print('============================================')
 
-    # 터미널 Enter 입력 대기 (비동기로 처리)
-    await asyncio.get_event_loop().run_in_executor(None, input, '\n준비되면 Enter 키를 누르세요...')
-
-    logger.info('수집 시작')
+    await asyncio.get_event_loop().run_in_executor(None, input, '\nRoom Indicator 이동 후 Enter 누르세요...')
+    print('>> 이제 브라우저에서 새로고침 버튼을 클릭해주세요!')
+    logger.info('POST 요청 대기 중 — 브라우저에서 새로고침 버튼 클릭 필요')
 
 
 # 캡처된 POST 요청 정보 저장 (URL, headers, body)
