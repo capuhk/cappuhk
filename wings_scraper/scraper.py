@@ -85,51 +85,25 @@ def map_room(raw: dict) -> dict:
 
 
 async def login(page):
-    """WINGS PMS 로그인 — placeholder 기반 셀렉터"""
-    logger.info(f'WINGS 로그인 시도: {WINGS_LOGIN_URL}')
+    """WINGS PMS 로그인 — 수동 로그인 대기"""
+    logger.info(f'WINGS 로그인 페이지 열기: {WINGS_LOGIN_URL}')
     await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
-    await asyncio.sleep(2)
 
-    # 회사코드 입력 (placeholder 또는 순서 기반)
-    all_inputs = await page.locator('input[type="text"], input:not([type="password"]):not([type="checkbox"]):not([type="hidden"])').all()
-    logger.info(f'text input {len(all_inputs)}개 발견')
+    print('\n============================================')
+    print('  브라우저에서 WINGS 로그인을 완료해주세요.')
+    print('  로그인 후 자동으로 스크래핑이 시작됩니다.')
+    print('============================================\n')
 
-    if len(all_inputs) >= 1:
-        await all_inputs[0].triple_click()
-        await all_inputs[0].fill(WINGS_COMPANY_ID)
-    if len(all_inputs) >= 2:
-        await all_inputs[1].triple_click()
-        await all_inputs[1].fill(WINGS_ID)
-
-    # 비밀번호 입력
-    pw_input = page.locator('input[type="password"]').first
-    await pw_input.fill(WINGS_PW)
-
-    # LOGIN 버튼 클릭 (이미지 버튼 포함)
-    submitted = False
-    for selector in [
-        'button[type="submit"]',
-        'input[type="submit"]',
-        'input[type="image"]',
-        'button:has-text("LOGIN")',
-        'button:has-text("Login")',
-        'button:has-text("로그인")',
-        'a.btn-login',
-        '.login-btn',
-    ]:
-        btn = page.locator(selector)
-        if await btn.count() > 0:
-            await btn.first.click()
-            submitted = True
-            logger.info(f'로그인 버튼 클릭: {selector}')
+    # URL이 로그인 페이지를 벗어날 때까지 대기 (최대 5분)
+    for _ in range(300):
+        current_url = page.url
+        if 'login' not in current_url and 'identity' not in current_url:
             break
+        await asyncio.sleep(1)
+    else:
+        raise Exception('로그인 대기 시간 초과 (5분)')
 
-    if not submitted:
-        logger.info('버튼 못 찾음 — Enter 키로 제출')
-        await pw_input.press('Enter')
-
-    await page.wait_for_load_state('networkidle', timeout=15000)
-    logger.info('WINGS 로그인 완료')
+    logger.info(f'로그인 완료 — 현재 URL: {page.url}')
 
 
 async def fetch_room_data(page) -> list[dict]:
