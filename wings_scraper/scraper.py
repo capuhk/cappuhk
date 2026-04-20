@@ -86,8 +86,8 @@ def map_room(raw: dict) -> dict:
 
 async def wait_for_manual(page):
     """
-    로그인 + Room Indicator 페이지 이동을 수동으로 처리.
-    searchListRoomIndicator.do 응답이 감지되면 준비 완료.
+    로그인 + Room Indicator 이동을 수동으로 처리.
+    터미널에서 Enter 누르면 수집 시작.
     """
     logger.info(f'WINGS 로그인 페이지 열기: {WINGS_LOGIN_URL}')
     await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
@@ -95,26 +95,13 @@ async def wait_for_manual(page):
     print('\n============================================')
     print('  1. 브라우저에서 WINGS 로그인 완료')
     print('  2. Room Indicator 페이지로 이동')
-    print('  데이터가 감지되면 자동 수집이 시작됩니다.')
-    print('============================================\n')
+    print('  3. 터미널에서 Enter 를 누르면 수집 시작')
+    print('============================================')
 
-    # searchListRoomIndicator.do 응답 감지될 때까지 대기 (최대 10분)
-    detected = asyncio.Event()
+    # 터미널 Enter 입력 대기 (비동기로 처리)
+    await asyncio.get_event_loop().run_in_executor(None, input, '\n준비되면 Enter 키를 누르세요...')
 
-    async def handle_response(response):
-        if 'searchListRoomIndicator.do' in response.url:
-            detected.set()
-
-    page.on('response', handle_response)
-
-    try:
-        await asyncio.wait_for(detected.wait(), timeout=600)
-    except asyncio.TimeoutError:
-        raise Exception('대기 시간 초과 (10분) — Room Indicator 페이지로 이동해주세요')
-    finally:
-        page.remove_listener('response', handle_response)
-
-    logger.info('Room Indicator 페이지 감지 완료 — 수집 시작')
+    logger.info('수집 시작')
 
 
 async def fetch_room_data(page) -> list[dict]:
