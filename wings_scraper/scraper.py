@@ -84,26 +84,37 @@ def map_room(raw: dict) -> dict:
     return row
 
 
-async def login(page):
-    """WINGS PMS 로그인 — 수동 로그인 대기"""
+async def wait_for_manual(page):
+    """
+    로그인 + Room Indicator 페이지 이동을 수동으로 처리.
+    searchListRoomIndicator.do 응답이 감지되면 준비 완료.
+    """
     logger.info(f'WINGS 로그인 페이지 열기: {WINGS_LOGIN_URL}')
     await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
 
     print('\n============================================')
-    print('  브라우저에서 WINGS 로그인을 완료해주세요.')
-    print('  로그인 후 자동으로 스크래핑이 시작됩니다.')
+    print('  1. 브라우저에서 WINGS 로그인 완료')
+    print('  2. Room Indicator 페이지로 이동')
+    print('  데이터가 감지되면 자동 수집이 시작됩니다.')
     print('============================================\n')
 
-    # URL이 로그인 페이지를 벗어날 때까지 대기 (최대 5분)
-    for _ in range(300):
-        current_url = page.url
-        if 'login' not in current_url and 'identity' not in current_url:
-            break
-        await asyncio.sleep(1)
-    else:
-        raise Exception('로그인 대기 시간 초과 (5분)')
+    # searchListRoomIndicator.do 응답 감지될 때까지 대기 (최대 10분)
+    detected = asyncio.Event()
 
-    logger.info(f'로그인 완료 — 현재 URL: {page.url}')
+    async def handle_response(response):
+        if 'searchListRoomIndicator.do' in response.url:
+            detected.set()
+
+    page.on('response', handle_response)
+
+    try:
+        await asyncio.wait_for(detected.wait(), timeout=600)
+    except asyncio.TimeoutError:
+        raise Exception('대기 시간 초과 (10분) — Room Indicator 페이지로 이동해주세요')
+    finally:
+        page.remove_listener('response', handle_response)
+
+    logger.info('Room Indicator 페이지 감지 완료 — 수집 시작')
 
 
 async def fetch_room_data(page) -> list[dict]:
@@ -182,8 +193,8 @@ async def main():
         context = await browser.new_context()
         page    = await context.new_page()
 
-        # 최초 로그인
-        await login(page)
+        # 수동 로그인 + Room Indicator 이동 대기
+        await wait_for_manual(page)
 
         fail_count = 0  # 연속 실패 횟수
 
@@ -203,11 +214,11 @@ async def main():
                 fail_count += 1
                 logger.warning(f'연속 실패 {fail_count}회')
 
-                # 3회 연속 실패 시 재로그인 시도
+                # 3회 연속 실패 시 수동 재로그인 요청
                 if fail_count >= 3:
-                    logger.info('재로그인 시도')
+                    logger.info('수동 재로그인 필요')
                     try:
-                        await login(page)
+                        await wait_for_manual(page)
                         fail_count = 0
                     except Exception as e:
                         logger.error(f'재로그인 실패: {e}')
