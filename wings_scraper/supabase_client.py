@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from supabase import create_client
 from config import SUPABASE_URL, SUPABASE_SERVICE_KEY
 import logging

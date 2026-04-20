@@ -1,8 +1,13 @@
 import asyncio
 import json
 import logging
+import sys
+import os
 import time
 from datetime import datetime
+
+# 스크립트 폴더를 모듈 검색 경로에 추가 (다른 위치에서 실행해도 config 임포트 가능)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from playwright.async_api import async_playwright, Response
 from config import (
     WINGS_LOGIN_URL, WINGS_URL,
