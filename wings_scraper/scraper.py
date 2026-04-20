@@ -85,27 +85,54 @@ def map_room(raw: dict) -> dict:
 
 
 async def login(page):
-    """WINGS PMS 로그인 — 회사코드 + ID + PW 3단계"""
+    """WINGS PMS 로그인 — 페이지의 text input 순서대로 입력"""
     logger.info(f'WINGS 로그인 시도: {WINGS_LOGIN_URL}')
-    await page.goto(WINGS_LOGIN_URL, wait_until='networkidle', timeout=30000)
+    await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
+    await asyncio.sleep(2)
 
-    # 로그인 폼 입력 (실제 selector는 WINGS 페이지 구조에 따라 조정 필요)
-    # 회사코드 입력
-    if WINGS_COMPANY_ID:
-        company_input = page.locator('input[name="companyId"], input[id*="company"], input[placeholder*="회사"]').first
-        if await company_input.count() > 0:
-            await company_input.fill(WINGS_COMPANY_ID)
+    # 페이지의 모든 visible text input 조회
+    text_inputs = await page.locator('input[type="text"], input:not([type])').all()
+    password_inputs = await page.locator('input[type="password"]').all()
 
-    # ID 입력
-    await page.locator('input[name="userId"], input[type="text"][id*="id"], input[placeholder*="아이디"]').first.fill(WINGS_ID)
+    logger.info(f'text input {len(text_inputs)}개, password input {len(password_inputs)}개 발견')
 
-    # PW 입력
-    await page.locator('input[name="userPw"], input[type="password"]').first.fill(WINGS_PW)
+    if len(text_inputs) >= 2:
+        # text input이 2개 이상 → 첫번째=회사코드, 두번째=ID
+        await text_inputs[0].fill(WINGS_COMPANY_ID)
+        await text_inputs[1].fill(WINGS_ID)
+    elif len(text_inputs) == 1:
+        # text input이 1개 → ID만
+        await text_inputs[0].fill(WINGS_ID)
+    else:
+        logger.error('로그인 입력 필드를 찾지 못했습니다')
+        raise Exception('로그인 필드 없음')
 
-    # 로그인 버튼 클릭
-    await page.locator('button[type="submit"], input[type="submit"], button:has-text("로그인")').first.click()
+    # 비밀번호 입력
+    if password_inputs:
+        await password_inputs[0].fill(WINGS_PW)
+    else:
+        logger.error('비밀번호 필드를 찾지 못했습니다')
+        raise Exception('비밀번호 필드 없음')
 
-    # 로그인 완료 대기
+    # 로그인 버튼 클릭 (여러 패턴 시도)
+    submitted = False
+    for selector in [
+        'button[type="submit"]',
+        'input[type="submit"]',
+        'button:has-text("Login")',
+        'button:has-text("로그인")',
+        'a:has-text("로그인")',
+    ]:
+        btn = page.locator(selector)
+        if await btn.count() > 0:
+            await btn.first.click()
+            submitted = True
+            break
+
+    if not submitted:
+        # 버튼 못 찾으면 Enter 키로 제출
+        await password_inputs[0].press('Enter')
+
     await page.wait_for_load_state('networkidle', timeout=15000)
     logger.info('WINGS 로그인 완료')
 
