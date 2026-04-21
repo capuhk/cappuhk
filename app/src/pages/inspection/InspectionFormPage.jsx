@@ -275,13 +275,13 @@ export default function InspectionFormPage() {
           <RoomPicker value={roomNo} onChange={handleRoomChange} />
         </section>
 
-        {/* 특이사항 */}
+        {/* 메모 */}
         <section>
-          <label className="block text-sm text-white/50 mb-2">특이사항</label>
+          <label className="block text-sm text-white/50 mb-2">메모</label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="특이사항을 입력하세요"
+            placeholder="메모를 입력하세요"
             rows={3}
             className="w-full px-4 py-3 bg-white/10 rounded-xl border border-white/20
               text-white placeholder:text-white/30 text-sm resize-none outline-none

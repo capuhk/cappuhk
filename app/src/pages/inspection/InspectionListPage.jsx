@@ -67,14 +67,15 @@ export default function InspectionListPage() {
     return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey, dateFrom, dateTo])
 
-  // ── 검색 (객실번호 + 작성자) ──────────────────
+  // ── 검색 (객실번호 + 작성자 + 메모) ──────────────────
   const filtered = useMemo(() => {
     let list = records
     const q = search.trim()
     if (q) {
       list = list.filter((r) =>
         r.room_no.includes(q) ||
-        (r.users?.name || '').includes(q)
+        (r.users?.name || '').includes(q) ||
+        (r.note || '').includes(q)
       )
     }
     return list
@@ -167,7 +168,7 @@ export default function InspectionListPage() {
           <Search size={16} className="text-white/40 shrink-0" />
           <input
             type="text"
-            placeholder="객실번호 또는 작성자 검색"
+            placeholder="객실번호·작성자·메모 검색"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 bg-transparent text-white text-sm placeholder:text-white/30 outline-none"
