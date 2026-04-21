@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-09 (FCM 푸시 전환, 알림 읽음 DB 처리, 홈화면 뱃지, 공지 팝업)
-> **버전**: v4.5 (v4.4 + FCM HTTP v1 + notification_reads + Web App Badge API + 공지 팝업)
+> **최종 업데이트**: 2026-04-22 (메모 라벨 통일, 메모 검색 확장, 카푸치노 전용 WINGS 객실 대시보드)
+> **버전**: v4.6 (v4.5 + 메모 통일 + WINGS 객실 대시보드)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -44,6 +44,7 @@
 17. [API 설계](#17-api-설계)
 18. [개발 우선순위 로드맵](#18-개발-우선순위-로드맵)
 19. [전체 URL 라우팅](#19-전체-url-라우팅)
+20. [카푸치노 전용 업데이트](#20-카푸치노-전용-업데이트)
 
 ---
 
@@ -2144,6 +2145,67 @@ $$ LANGUAGE SQL STABLE;
 
 ---
 
+## 카푸치노 전용 업데이트
+
+> 이 섹션은 카푸치노 호텔 WINGS PMS 연동 전용 기능입니다.
+
+### WINGS 객실현황 대시보드 (v4.6, 2026-04-17)
+
+#### 시스템 구조
+```
+[WINGS PMS 내부망]
+      ↓
+[Python 스크래퍼 — 내부망 PC]
+  wings_scraper/start.bat 실행
+  Playwright → WINGS 로그인 → Room Indicator 인터셉트
+  5분마다 rooms 테이블 upsert
+      ↓
+[Supabase rooms 테이블]
+  Realtime 활성화
+      ↓
+[React 앱 /rooms 페이지]
+  Realtime 구독 → 자동 갱신
+```
+
+#### 스크래퍼 설정 파일
+- `wings_scraper/.env` — WINGS 계정·Supabase Service Key·스크래핑 간격 설정
+- `wings_scraper/setup_portable.bat` — 외부망 PC에서 1회 실행 (포터블 Python + 패키지 + 브라우저 설치)
+- `wings_scraper/start.bat` — 내부망 PC에서 실행
+
+#### rooms 테이블 주요 컬럼
+| 컬럼 | 설명 |
+|------|------|
+| room_no | 객실번호 (UNIQUE) |
+| room_sts_text | 청소 상태 (VD/VI/VC/OO/OC/OD/OI) |
+| inroom_status | 재실 여부 (I=재실, V=공실) — 카드에 사람 아이콘으로 표시 |
+| arrv_date / dept_date | 체크인/아웃 날짜 |
+| updated_at | 마지막 스크래핑 시각 |
+
+> 투숙객 이름(inhs_gest_name)은 개인정보 보호로 수집 제외
+
+#### 객실 상태 코드
+| 코드 | 의미 | 카드 색상 |
+|------|------|---------|
+| VD | 빈방/미청소 | 어두운 회색 |
+| VI | 빈방/점검완료 | 초록 |
+| VC | 빈방/청소완료 | 파랑 |
+| OO | 사용불가 | 빨강 |
+| OC | 투숙/청소완료 | 청록 |
+| OD | 투숙/미청소 | 주황 |
+| OI | 투숙/점검완료 | 하늘 |
+
+#### 스크래퍼 반복 수집 방식 (v4.6.1 수정)
+- 첫 수동 새로고침 시 POST 요청 캡처 (`_captured_request` 저장)
+- 이후 5분마다 `page.request.post()`로 동일 요청 직접 재전송
+- 브라우저 세션 쿠키 자동 공유 → 버튼 클릭 없이 반복 가능
+
+#### 구현 파일
+- `app/supabase/migration_v17.sql`
+- `app/src/pages/rooms/RoomDashboard.jsx`
+- `wings_scraper/` (전체)
+
+---
+
 ## 변경 이력
 
 | 버전 | 날짜 | 변경 내용 |
@@ -2161,3 +2223,5 @@ $$ LANGUAGE SQL STABLE;
 | v4.3 | 2026-04-04 | iOS 무한스피너 근본 수정 — [1] useAuthStore.init() INITIAL_SESSION 이벤트 → getSession() 직접 호출(내부 네트워크 hanging 제거) [2] usePullToRefresh deps에서 pullDistance/refreshing 제거→ref 사용(touchmove마다 리스너 재등록→iOS touchend 누락 방지) [3] visibilitychange 임계값 5분→2분(정확히 5분 미만 미발동 방지) [4] FAB bottom에 env(safe-area-inset-bottom) 추가(홈화면 PWA 탭바 겹침 수정) |
 | v4.4 | 2026-04-04 | 하우스맨·프론트 역할 추가 + 게시판 권한 정책 구현 — [1] migration_v10: users.role CHECK에 houseman/front 추가 [2] UserFormPage: 역할 선택에 하우스맨/프론트 추가 [3] BottomTabBar/SideMenu/FAB: houseman·front → 시설오더·직원목록만 접근 [4] AppRouter: excludeRoles 추가, 게시판·설정에서 houseman·front 차단 [5] 게시판 권한 운영 정책 — AppPolicyEditor에 notice_read_roles·notice_write_roles 체크박스 섹션 추가 (메이드·시설 동적 토글, 관리자 3종 항상 ON) [6] notices.target_roles TEXT[] 컬럼 추가(migration_v11) — 빈 배열=전체공개, 특정 역할 지정 가능 [7] NoticeFormPage: 공개 대상 선택 UI(전체/메이드/시설 토글), 편집 시 기존 target_roles 로드 [8] NoticeListPage: 관리자=전체, 그 외=target_roles 클라이언트 필터 [9] NoticeDetailPage: target_roles 접근 권한 체크(차단 시 목록 리다이렉트) [10] useNotificationStore·NotificationDrawer: userRole 파라미터 추가, 공지 뱃지도 target_roles 필터 [11] 인스펙션 기본상태 완료 추가, 객실하자 검색 구분/위치/분류/내용 확장, 직원목록 아이콘 전화/문자 버튼 [12] 시설오더 오더종류로 구분 통합(공용부·시설 선택시 객실번호 숨김), 인스펙션 사진 카메라 전용 |
 | v4.5 | 2026-04-09 | FCM 푸시 전환 + 알림 시스템 전면 개선 — [1] Firebase Cloud Messaging HTTP v1 API 전환(VAPID→FCM 서비스 계정 JWT) [2] migration_v12: users에 push_room/facility/common_order 컬럼 추가(관리자 알람 ON/OFF) [3] migration_v13: fcm_tokens 테이블 + notif_last_read_at 컬럼 + Realtime 발행 [4] migration_v14: notification_reads 테이블(드로어 개별 읽음 + 팝업 확인 공용) [5] useNotificationStore 전면 재설계 — localStorage 제거, DB 기준 뱃지, Realtime+visibilitychange+60초폴링, markRead/markAllRead notification_reads 연동 [6] Web App Badging API 연동 — 포그라운드: unreadCount 변경 시 setAppBadge, 백그라운드: SW onBackgroundMessage 시 +1 [7] 인스펙션조회 PDF — A4 40행, 순번 컬럼, 특이사항 컬럼 57% 확대 [8] NoticePopup.jsx 신규 — is_pinned 공지 앱 진입 시 팝업(notification_reads DB 기준 1회 표시, 다기기 동기화) [9] 드로어 완료 오더 표시 추가(updated_at 기준, 초록 아이콘) |
+| v4.6 | 2026-04-17 | 알림 뱃지 버그 수정 + 텔레그램 푸시 수정 + WINGS 객실현황 대시보드(카푸치노 전용) — [1] closeDrawer 시 notif_last_read_at 갱신(드로어 닫으면 뱃지 초기화) [2] _refreshBadge notification_reads 반영(뱃지·목록 카운트 불일치 수정) [3] _fetchItems unreadCount 실제 항목 수로 동기화 [4] send-push 401 수정(Supabase ES256 JWT → Verify JWT OFF) [5] send-push fcm_tokens 서브쿼리 TypeError → 2단계 쿼리 수정 후 재배포 [6] migration_v17: rooms 테이블 + Realtime + RLS [7] RoomDashboard.jsx: 층/상태 필터·검색·Realtime 구독·상태별 색상 카드 그리드 [8] wings_scraper: Python+Playwright 포터블 스크래퍼(setup_portable.bat으로 외부망 준비 → start.bat으로 내부망 실행) |
+| v4.6.1 | 2026-04-22 | WINGS 스크래퍼 5분 반복 수집 수정 + UI 개선 + 메모 통일 — [1] wings_scraper: fetch_room_data 버튼클릭/F5 방식 제거 → page.request.post()로 캡처된 POST 직접 재실행(브라우저 세션 쿠키 자동 공유, 반복 수집 정상화) [2] RoomDashboard: 재실 여부 아이콘 추가(inroom_status=I 시 사람 아이콘 표시) [3] 인스펙션·시설오더 폼 '특이사항' 라벨 → '메모'로 통일 [4] 인스펙션·시설오더 리스트 검색에 메모(note) 내용 포함 |
