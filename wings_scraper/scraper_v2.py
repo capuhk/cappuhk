@@ -123,26 +123,37 @@ async def login(page) -> bool:
         return False
 
 
-# Room Indicator 페이지 URL (WINGS_URL 기준)
-ROOM_INDICATOR_PATH = '/pms/biz/fd01_2400_V50/roomIndicator.do'
-
 async def go_to_room_indicator(page) -> bool:
     """
-    Room Indicator 페이지로 자동 이동.
-    WINGS_URL에서 도메인을 추출해 경로 조합.
+    Room Indicator 메뉴를 JS 클릭으로 이동.
+    ExtJS SPA 구조상 URL 직접 이동 불가 — 텍스트 'Room Indicator' 링크를 클릭.
     """
-    # WINGS_URL에서 origin 추출 (예: https://wings.kolon.com)
-    from urllib.parse import urlparse
-    parsed = urlparse(WINGS_LOGIN_URL)
-    origin = f'{parsed.scheme}://{parsed.netloc}'
-    indicator_url = origin + ROOM_INDICATOR_PATH
-
-    logger.info(f'Room Indicator 이동: {indicator_url}')
+    logger.info('Room Indicator 메뉴 클릭 시도')
     try:
-        await page.goto(indicator_url, wait_until='domcontentloaded', timeout=30000)
+        # 메뉴가 로드될 때까지 대기
         await asyncio.sleep(2)
-        logger.info('Room Indicator 페이지 이동 완료')
+
+        # 'Room Indicator' 텍스트를 가진 첫 번째 a 태그 클릭
+        clicked = await page.evaluate('''() => {
+            const links = document.querySelectorAll('a')
+            for (const el of links) {
+                if (el.innerText.trim() === 'Room Indicator') {
+                    el.click()
+                    return true
+                }
+            }
+            return false
+        }''')
+
+        if not clicked:
+            logger.warning('Room Indicator 메뉴를 찾지 못함')
+            return False
+
+        # 클릭 후 화면 로드 대기
+        await asyncio.sleep(3)
+        logger.info('Room Indicator 메뉴 클릭 완료')
         return True
+
     except Exception as e:
         logger.warning(f'Room Indicator 이동 실패: {e}')
         return False
