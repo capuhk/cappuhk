@@ -82,19 +82,55 @@ def map_room(raw: dict) -> dict:
     return row
 
 
-async def wait_for_manual(page):
+async def auto_login(page):
     """
-    로그인 + Room Indicator 이동을 수동으로 처리.
-    터미널에서 Enter 누르면 POST 리스너 등록 후 새로고침 버튼 클릭 안내.
+    WINGS 로그인 자동화.
+    JS로 값을 직접 주입하고 change/input 이벤트를 강제 발생시켜
+    오래된 ExtJS 기반 폼에서도 입력이 인식되도록 처리.
     """
     logger.info(f'WINGS 로그인 페이지 열기: {WINGS_LOGIN_URL}')
     await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
+    await asyncio.sleep(1)
+
+    # JS로 필드 값 주입 + 이벤트 강제 발생 (오래된 폼 대응)
+    await page.evaluate(f'''() => {{
+        function setVal(id, value) {{
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.value = value;
+            el.dispatchEvent(new Event('focus',  {{bubbles: true}}));
+            el.dispatchEvent(new Event('input',  {{bubbles: true}}));
+            el.dispatchEvent(new Event('change', {{bubbles: true}}));
+            el.dispatchEvent(new Event('blur',   {{bubbles: true}}));
+        }}
+        setVal('company',  '{WINGS_COMPANY_ID}');
+        setVal('username', '{WINGS_ID}');
+        setVal('userpw',   '{WINGS_PW}');
+    }}''')
+    await asyncio.sleep(0.5)
+
+    # 로그인 버튼 클릭
+    await page.click('#btn_login')
+    logger.info('로그인 버튼 클릭')
+
+    # 로그인 완료 대기 — URL이 바뀌거나 메인 화면 요소가 나타날 때까지
+    try:
+        await page.wait_for_url(lambda url: 'login' not in url, timeout=15000)
+        logger.info('로그인 성공')
+    except Exception:
+        logger.warning('URL 변경 미감지 — 로그인 상태 수동 확인 필요')
+
+
+async def wait_for_manual(page):
+    """
+    자동 로그인 시도 → 실패 시 수동 로그인으로 폴백.
+    Room Indicator 페이지 이동은 수동으로 진행.
+    """
+    await auto_login(page)
 
     print('\n============================================')
-    print('  1. 브라우저에서 WINGS 로그인 완료')
-    print('  2. Room Indicator 페이지로 이동')
-    print('  3. 터미널에서 Enter')
-    print('  4. 브라우저에서 새로고침 버튼 클릭')
+    print('  Room Indicator 페이지로 이동해주세요')
+    print('  이동 완료 후 터미널에서 Enter')
     print('============================================')
 
     await asyncio.get_event_loop().run_in_executor(None, input, '\nRoom Indicator 이동 후 Enter 누르세요...')
