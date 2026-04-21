@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, RefreshCw, Loader2, Hotel } from 'lucide-react'
+import { Search, RefreshCw, Loader2, Hotel, User } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import dayjs from 'dayjs'
 
@@ -103,7 +103,13 @@ function RoomCard({ room }) {
     <div className={`relative rounded-xl border p-3 ${cfg.bg} ${cfg.border} transition-all`}>
       {/* 객실번호 + 상태 뱃지 */}
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-white font-bold text-sm">{room.room_no}</span>
+        <div className="flex items-center gap-1">
+          <span className="text-white font-bold text-sm">{room.room_no}</span>
+          {/* 재실 여부 — inroom_status I=재실, V=공실 */}
+          {room.inroom_status === 'I' && (
+            <User size={11} className="text-white/60" />
+          )}
+        </div>
         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cfg.text}`}>
           {cfg.label}
         </span>
