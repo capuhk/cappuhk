@@ -300,9 +300,9 @@ async def main():
     logger.info('WINGS 스크래퍼 v2 시작')
 
     async with async_playwright() as pw:
-        # headless=True — 완전 백그라운드 실행
-        # 자동 로그인 실패 시 headless=False 로 변경하여 디버깅
-        browser = await pw.chromium.launch(headless=True)
+        # headless=False — 브라우저 표시 (동작 확인용)
+        # 검증 완료 후 headless=True 로 변경하면 완전 백그라운드 실행
+        browser = await pw.chromium.launch(headless=False)
         context = await browser.new_context()
         page    = await context.new_page()
 
