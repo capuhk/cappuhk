@@ -42,16 +42,23 @@ export default function ImageUploader({ type, value = [], onChange, cameraOnly =
     getSignedUrls(validPaths, type)
       .then((signed) => {
         const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
-        setItems(
-          value.map((p) => ({
+        setItems((prev) => {
+          // 현재 업로드 중인 항목은 유지 — signed URL 응답이 늦게 오면 placeholder가 사라지는 버그 방지
+          const uploadingItems = prev.filter((it) => it.uploading)
+          const completedItems = value.map((p) => ({
             thumb_path: p,
             url:        p ? (urlMap[p] ?? null) : null,
             uploading:  false,
-          })),
-        )
+          }))
+          return [...completedItems, ...uploadingItems]
+        })
       })
       .catch(() => {
-        setItems(value.map((p) => ({ thumb_path: p, url: null, uploading: false })))
+        setItems((prev) => {
+          const uploadingItems = prev.filter((it) => it.uploading)
+          const completedItems = value.map((p) => ({ thumb_path: p, url: null, uploading: false }))
+          return [...completedItems, ...uploadingItems]
+        })
       })
   // value 배열의 내용 변화 감지 — join으로 참조 변경과 무관하게 실제 경로 변경만 반응
   }, [value.join(','), type])
