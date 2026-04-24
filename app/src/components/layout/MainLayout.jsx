@@ -86,7 +86,7 @@ export default function MainLayout({ children }) {
       document.removeEventListener('visibilitychange', handleVisible)
       clearInterval(timer)
     }
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import useAuthStore from '../store/useAuthStore'
@@ -97,16 +97,27 @@ export default function LoginPage() {
   }, [pin])
 
   // 키보드 입력 지원 — PIN 단계에서 숫자/백스페이스/엔터 처리
+  // ref로 최신 상태 참조 → deps를 [step]으로 최소화해 매 입력마다 리스너 재등록 방지
+  const pinRef        = useRef(pin)
+  const submittingRef = useRef(submitting)
+  useEffect(() => { pinRef.current        = pin        }, [pin])
+  useEffect(() => { submittingRef.current = submitting }, [submitting])
+
   useEffect(() => {
     if (step !== 'pin') return
     const onKeyDown = (e) => {
-      if (e.key >= '0' && e.key <= '9') handleKey(e.key)
-      else if (e.key === 'Backspace')    handleKey('삭제')
-      else if (e.key === 'Enter')        handleKey('확인')
+      if (submittingRef.current) return
+      if (e.key >= '0' && e.key <= '9') {
+        if (pinRef.current.length < PIN_LENGTH) setPin((prev) => prev + e.key)
+      } else if (e.key === 'Backspace') {
+        setPin((prev) => prev.slice(0, -1))
+      } else if (e.key === 'Enter') {
+        handleLogin()
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [step, pin, submitting])
+  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 로그인 처리 ───────────────────────────────
   const handleLogin = async () => {
