@@ -96,6 +96,18 @@ export default function LoginPage() {
     }
   }, [pin])
 
+  // 키보드 입력 지원 — PIN 단계에서 숫자/백스페이스/엔터 처리
+  useEffect(() => {
+    if (step !== 'pin') return
+    const onKeyDown = (e) => {
+      if (e.key >= '0' && e.key <= '9') handleKey(e.key)
+      else if (e.key === 'Backspace')    handleKey('삭제')
+      else if (e.key === 'Enter')        handleKey('확인')
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [step, pin, submitting])
+
   // ── 로그인 처리 ───────────────────────────────
   const handleLogin = async () => {
     if (submitting) return
