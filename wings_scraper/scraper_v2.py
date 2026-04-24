@@ -152,16 +152,16 @@ async def go_to_room_indicator(page) -> bool:
 
         if star_clicked:
             logger.info('별표 버튼 클릭 — 메뉴 패널 오픈 대기')
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(3)
         else:
             logger.info('별표 버튼 미발견 — Room Indicator 직접 탐색')
 
-        # 2단계: 'Room Indicator' 텍스트 링크 클릭
-        # textContent 사용 — hidden 요소도 포함해 탐색
+        # 2단계: 'Room Indicator' 포함 링크 클릭
+        # includes 사용 — "0 Room Indicator" 같이 번호 붙은 경우도 대응
         clicked = await page.evaluate('''() => {
             const links = [...document.querySelectorAll('a')]
             for (const el of links) {
-                if ((el.textContent || '').trim() === 'Room Indicator') {
+                if ((el.textContent || '').includes('Room Indicator')) {
                     el.click()
                     return true
                 }
