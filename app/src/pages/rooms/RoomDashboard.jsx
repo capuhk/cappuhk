@@ -155,6 +155,8 @@ export default function RoomDashboard() {
   const [floorFilter,   setFloorFilter]   = useState('전체')
   // 다중 선택 필터 — Set으로 관리, 비어있으면 전체(ALL)
   const [statusFilters, setStatusFilters] = useState(new Set())
+  // BK 필터 — room_status === 'BK' 인 객실만 표시
+  const [bkOnly,        setBkOnly]        = useState(false)
   const [search,        setSearch]        = useState('')
 
   // 층 목록 동적 생성
@@ -172,6 +174,9 @@ export default function RoomDashboard() {
     }
     return map
   }, [rooms])
+
+  // BK 객실 수
+  const bkCount = useMemo(() => rooms.filter((r) => r.room_status === 'BK').length, [rooms])
 
   // count > 0 인 상태 목록
   const availableStatuses = useMemo(
@@ -204,13 +209,15 @@ export default function RoomDashboard() {
       if (floorFilter !== '전체' && r.floor_code !== floorFilter) return false
       // 다중 선택 필터 — 비어있으면 전체
       if (statusFilters.size > 0 && !statusFilters.has(r.room_sts_text)) return false
+      // BK 필터
+      if (bkOnly && r.room_status !== 'BK') return false
       if (search) {
         const q = search.toLowerCase()
         if (!r.room_no?.toLowerCase().includes(q)) return false
       }
       return true
     })
-  }, [rooms, floorFilter, statusFilters, search])
+  }, [rooms, floorFilter, statusFilters, bkOnly, search])
 
   return (
     <div className="px-4 pt-4 pb-32 max-w-5xl mx-auto">
@@ -257,6 +264,23 @@ export default function RoomDashboard() {
           ALL
           <span className={isAll ? 'text-white/70' : 'text-white/30'}>{rooms.length}</span>
         </button>
+
+        {/* BK 필터 버튼 */}
+        {bkCount > 0 && (
+          <button
+            onClick={() => setBkOnly((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium
+              transition-all active:scale-95
+              ${bkOnly
+                ? 'bg-yellow-500/20 border-yellow-400/50 text-yellow-300'
+                : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+              }`}
+          >
+            <CalendarDays size={11} className={bkOnly ? 'text-yellow-300' : 'text-white/40'} />
+            <span>BK</span>
+            <span className={bkOnly ? 'text-yellow-300/70' : 'text-white/30'}>{bkCount}</span>
+          </button>
+        )}
 
         {/* 상태별 칩 — count > 0 인 것만 표시 */}
         {Object.entries(STATUS_CONFIG).map(([code, cfg]) => {
