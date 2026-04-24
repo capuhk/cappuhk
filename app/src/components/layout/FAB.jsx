@@ -27,7 +27,8 @@ const SUB_TO_PARENT = {
 export default function FAB() {
   const navigate = useNavigate()
   const location = useLocation()
-  const user = useAuthStore((s) => s.user)
+  const user            = useAuthStore((s) => s.user)
+  const noticeWriteRoles = useAuthStore((s) => s.noticeWriteRoles)
   const pathname = location.pathname
 
   // FAB 미표시 경로 확인
@@ -65,8 +66,15 @@ export default function FAB() {
   const config = FAB_CONFIG[configKey]
   if (!config) return null
 
-  // 역할 권한 확인
-  if (!config.roles.includes(user?.role)) return null
+  // 게시판 쓰기 FAB — notice_write_roles 정책 기반 동적 판단
+  if (configKey === '/notice') {
+    // 정책 로드 전이면 기본값(admin/manager/supervisor)으로 폴백
+    const writeRoles = noticeWriteRoles ?? ['admin', 'manager', 'supervisor']
+    if (!writeRoles.includes(user?.role)) return null
+  } else {
+    // 역할 권한 확인 (하드코딩)
+    if (!config.roles.includes(user?.role)) return null
+  }
 
   return (
     <button

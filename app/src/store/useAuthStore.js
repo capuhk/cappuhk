@@ -17,7 +17,8 @@ const useAuthStore = create((set, get) => ({
   session: null,          // Supabase 세션 객체
   loading: true,          // 앱 첫 로드 시 세션 복원 중 여부
   error: null,            // 로그인 에러 메시지
-  noticeReadRoles: null,  // 게시판 접근 허용 역할 (null = 아직 로드 안 됨)
+  noticeReadRoles:  null,  // 게시판 읽기 허용 역할 (null = 아직 로드 안 됨)
+  noticeWriteRoles: null,  // 게시판 쓰기 허용 역할 (null = 아직 로드 안 됨)
 
   // ─────────────────────────────────────────────
   // 앱 시작 시 호출 — 기존 세션 복원 + 세션 변경 구독
@@ -78,16 +79,13 @@ const useAuthStore = create((set, get) => ({
           get()._fetchProfile(session.user.id).then(profile => {
             if (profile) set({ user: profile })
           })
-          // 게시판 접근 허용 역할 — masterCache 활용 (24h 캐시)
+          // 게시판 읽기·쓰기 허용 역할 — masterCache 활용 (24h 캐시)
           getMasterData(CACHE_KEYS.appPolicies).then((policies) => {
-            const found = (policies || []).find((p) => p.key === 'notice_read_roles')
-            try {
-              const roles = JSON.parse(found?.value || '[]')
-              set({ noticeReadRoles: roles })
-            } catch {
-              set({ noticeReadRoles: [] })
-            }
-          }).catch(() => set({ noticeReadRoles: [] }))
+            const readFound  = (policies || []).find((p) => p.key === 'notice_read_roles')
+            const writeFound = (policies || []).find((p) => p.key === 'notice_write_roles')
+            try { set({ noticeReadRoles:  JSON.parse(readFound?.value  || '[]') }) } catch { set({ noticeReadRoles:  [] }) }
+            try { set({ noticeWriteRoles: JSON.parse(writeFound?.value || '[]') }) } catch { set({ noticeWriteRoles: [] }) }
+          }).catch(() => set({ noticeReadRoles: [], noticeWriteRoles: [] }))
         }
       })
       .catch(() => {
@@ -183,16 +181,13 @@ const useAuthStore = create((set, get) => ({
     const profile = await get()._fetchProfile(data.user.id)
     set({ session: data.session, user: profile, error: null })
 
-    // 게시판 접근 정책 로드 (로그인 직후 SideMenu/Router에서 즉시 사용)
+    // 게시판 읽기·쓰기 정책 로드 (로그인 직후 SideMenu/Router/FAB에서 즉시 사용)
     getMasterData(CACHE_KEYS.appPolicies).then((policies) => {
-      const found = (policies || []).find((p) => p.key === 'notice_read_roles')
-      try {
-        const roles = JSON.parse(found?.value || '[]')
-        set({ noticeReadRoles: roles })
-      } catch {
-        set({ noticeReadRoles: [] })
-      }
-    }).catch(() => set({ noticeReadRoles: [] }))
+      const readFound  = (policies || []).find((p) => p.key === 'notice_read_roles')
+      const writeFound = (policies || []).find((p) => p.key === 'notice_write_roles')
+      try { set({ noticeReadRoles:  JSON.parse(readFound?.value  || '[]') }) } catch { set({ noticeReadRoles:  [] }) }
+      try { set({ noticeWriteRoles: JSON.parse(writeFound?.value || '[]') }) } catch { set({ noticeWriteRoles: [] }) }
+    }).catch(() => set({ noticeReadRoles: [], noticeWriteRoles: [] }))
 
     return { success: true }
   },
@@ -210,7 +205,7 @@ const useAuthStore = create((set, get) => ({
     useNotificationStore.getState().reset()
 
     localStorage.removeItem(SAVED_ID_KEY)
-    set({ session: null, user: null, error: null, noticeReadRoles: null })
+    set({ session: null, user: null, error: null, noticeReadRoles: null, noticeWriteRoles: null })
   },
 
   // ─────────────────────────────────────────────
