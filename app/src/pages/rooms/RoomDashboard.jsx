@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, RefreshCw, Loader2, Hotel, CalendarDays } from 'lucide-react'
+import { Search, RefreshCw, Loader2, Hotel, CalendarDays, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import dayjs from 'dayjs'
 
@@ -75,9 +75,63 @@ function useRooms() {
 }
 
 // ─────────────────────────────────────────────
+// RoomDetailSheet — 카드 탭 시 하단 슬라이드업 시트
+// ─────────────────────────────────────────────
+function RoomDetailSheet({ room, onClose }) {
+  if (!room) return null
+
+  // 날짜 M/D 형식 포맷 (연도 제외)
+  const fmtDate = (d) => d ? dayjs(d).format('M/D') : '—'
+
+  return (
+    <>
+      {/* 배경 오버레이 */}
+      <div
+        className="fixed inset-0 z-40 bg-black/50"
+        onClick={onClose}
+      />
+      {/* 시트 본체 */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-zinc-900 rounded-t-2xl
+        border-t border-white/10 px-5 pt-4 pb-10 animate-slide-up">
+        {/* 핸들 + 닫기 */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="w-10 h-1 bg-white/20 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-2" />
+          <span className="text-white font-bold text-base">{room.room_no}</span>
+          <button onClick={onClose} className="text-white/40 hover:text-white/70 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* 체크인 / 체크아웃 / 박수 */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white/5 rounded-xl p-3 text-center">
+            <p className="text-white/40 text-xs mb-1">체크인</p>
+            <p className="text-white font-semibold text-sm">{fmtDate(room.arrv_date)}</p>
+            {room.arrv_plan_time && (
+              <p className="text-white/30 text-xs mt-0.5">{room.arrv_plan_time}</p>
+            )}
+          </div>
+          <div className="bg-white/5 rounded-xl p-3 text-center">
+            <p className="text-white/40 text-xs mb-1">체크아웃</p>
+            <p className="text-white font-semibold text-sm">{fmtDate(room.dept_date)}</p>
+            {room.dept_plan_time && (
+              <p className="text-white/30 text-xs mt-0.5">{room.dept_plan_time}</p>
+            )}
+          </div>
+          <div className="bg-white/5 rounded-xl p-3 text-center">
+            <p className="text-white/40 text-xs mb-1">박수</p>
+            <p className="text-white font-semibold text-sm">{room.nights ? `${room.nights}박` : '—'}</p>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────
 // RoomCard — 개별 객실 카드
 // ─────────────────────────────────────────────
-function RoomCard({ room }) {
+function RoomCard({ room, onSelect }) {
   const cfg = STATUS_CONFIG[room.room_sts_text] || {
     label:  room.room_sts_text || '?',
     desc:   '알 수 없음',
@@ -96,7 +150,10 @@ function RoomCard({ room }) {
   const isInRoom    = room.inroom_status === 'I'
 
   return (
-    <div className={`relative rounded-xl border p-3 ${cfg.bg} ${cfg.border} transition-all`}>
+    <div
+      className={`relative rounded-xl border p-3 ${cfg.bg} ${cfg.border} transition-all active:scale-95 cursor-pointer`}
+      onClick={() => onSelect(room)}
+    >
       {/* 객실번호 + 아이콘 행 */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1">
@@ -158,6 +215,8 @@ export default function RoomDashboard() {
   // BK 필터 — room_status === 'BK' 인 객실만 표시
   const [bkOnly,        setBkOnly]        = useState(false)
   const [search,        setSearch]        = useState('')
+  // 카드 탭 시 상세 시트에 표시할 객실
+  const [selectedRoom,  setSelectedRoom]  = useState(null)
 
   // 층 목록 동적 생성
   const floors = useMemo(() => {
@@ -354,10 +413,13 @@ export default function RoomDashboard() {
       ) : (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2">
           {filtered.map((room) => (
-            <RoomCard key={room.room_no} room={room} />
+            <RoomCard key={room.room_no} room={room} onSelect={setSelectedRoom} />
           ))}
         </div>
       )}
+
+      {/* 카드 탭 시 상세 시트 */}
+      <RoomDetailSheet room={selectedRoom} onClose={() => setSelectedRoom(null)} />
     </div>
   )
 }
