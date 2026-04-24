@@ -126,19 +126,23 @@ async def login(page) -> bool:
 
 async def go_to_room_indicator(page) -> bool:
     """
-    Room Indicator 메뉴를 JS 클릭으로 이동.
-    ExtJS SPA 구조상 URL 직접 이동 불가 — 텍스트 'Room Indicator' 링크를 클릭.
+    Room Indicator 메뉴 이동.
+    1단계: 좌측 상단 별표(즐겨찾기) 버튼 클릭 → 최근 메뉴 패널 오픈
+    2단계: 패널에서 'Room Indicator' 링크 클릭
     """
     logger.info('Room Indicator 메뉴 클릭 시도')
     try:
-        # 메뉴가 로드될 때까지 대기
         await asyncio.sleep(2)
 
-        # 'Room Indicator' 텍스트를 가진 첫 번째 a 태그 클릭
-        clicked = await page.evaluate('''() => {
-            const links = document.querySelectorAll('a')
-            for (const el of links) {
-                if (el.innerText.trim() === 'Room Indicator') {
+        # 1단계: 별표(★/☆) 버튼 또는 즐겨찾기 관련 요소 클릭 → 메뉴 패널 열기
+        star_clicked = await page.evaluate('''() => {
+            const candidates = [...document.querySelectorAll('a, button, span, div, li')]
+            for (const el of candidates) {
+                const text = el.textContent.trim()
+                const cls  = (el.className || '').toString().toLowerCase()
+                if (text === '★' || text === '☆' ||
+                    cls.includes('star') || cls.includes('shortcut') ||
+                    cls.includes('favorite') || cls.includes('fav')) {
                     el.click()
                     return true
                 }
@@ -146,13 +150,40 @@ async def go_to_room_indicator(page) -> bool:
             return false
         }''')
 
+        if star_clicked:
+            logger.info('별표 버튼 클릭 — 메뉴 패널 오픈 대기')
+            await asyncio.sleep(1.5)
+        else:
+            logger.info('별표 버튼 미발견 — Room Indicator 직접 탐색')
+
+        # 2단계: 'Room Indicator' 텍스트 링크 클릭
+        # textContent 사용 — hidden 요소도 포함해 탐색
+        clicked = await page.evaluate('''() => {
+            const links = [...document.querySelectorAll('a')]
+            for (const el of links) {
+                if ((el.textContent || '').trim() === 'Room Indicator') {
+                    el.click()
+                    return true
+                }
+            }
+            return false
+        }''')
+
+        # Playwright locator fallback
+        if not clicked:
+            try:
+                await page.get_by_text('Room Indicator', exact=True).first.click(timeout=5000)
+                clicked = True
+                logger.info('Room Indicator 클릭 완료 (locator fallback)')
+            except Exception:
+                pass
+
         if not clicked:
             logger.warning('Room Indicator 메뉴를 찾지 못함')
             return False
 
-        # 클릭 후 화면 로드 대기
         await asyncio.sleep(3)
-        logger.info('Room Indicator 메뉴 클릭 완료')
+        logger.info('Room Indicator 이동 완료')
         return True
 
     except Exception as e:
@@ -314,15 +345,35 @@ async def main():
             return
 
         logger.info('초기 설정 완료 — 반복 수집 시작')
-        fail_count = 0
+        fail_count       = 0
+        was_outside_hours = False  # 운영 시간 외 대기 여부 추적
 
         while True:
+            global _captured_request
+
             # 운영 시간대 체크
             current_hour = datetime.now().hour
-            if not (SCRAPE_HOUR_START <= current_hour < SCRAPE_HOUR_END):
-                logger.info(f'운영 시간 외 ({current_hour}시) — {SCRAPE_HOUR_START}~{SCRAPE_HOUR_END}시 운영. 60초 대기...')
+            in_hours     = SCRAPE_HOUR_START <= current_hour < SCRAPE_HOUR_END
+
+            if not in_hours:
+                if not was_outside_hours:
+                    logger.info(f'운영 시간 종료 ({current_hour}시) — {SCRAPE_HOUR_START}~{SCRAPE_HOUR_END}시까지 대기')
+                was_outside_hours = True
                 await asyncio.sleep(60)
                 continue
+
+            # 운영 시간 재진입 시 세션 만료 가정 → 강제 재로그인
+            if was_outside_hours:
+                was_outside_hours = False
+                logger.info('운영 시간 재진입 — 세션 갱신을 위해 재로그인')
+                _captured_request = None
+                ok = await setup(page)
+                if not ok:
+                    logger.error('재로그인 실패 — 60초 후 재시도')
+                    await asyncio.sleep(60)
+                    continue
+                fail_count = 0
+                logger.info('재로그인 성공 — 수집 재개')
 
             success = await scrape_once(page)
 
