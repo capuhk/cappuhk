@@ -2,10 +2,14 @@ import asyncio
 import logging
 import sys
 import os
+import json
 from datetime import datetime
 
 # 스크립트 폴더를 모듈 검색 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# scraper.py 가 저장한 캡처 파일 경로
+CAPTURED_REQUEST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'captured_request.json')
 from playwright.async_api import async_playwright
 from config import (
     WINGS_LOGIN_URL, WINGS_URL,
@@ -145,12 +149,72 @@ async def go_to_room_indicator(page) -> bool:
         return False
 
 
+def load_captured_request() -> dict | None:
+    """
+    scraper.py 가 저장한 captured_request.json 로드.
+    파일이 없거나 읽기 실패 시 None 반환.
+    """
+    if not os.path.exists(CAPTURED_REQUEST_FILE):
+        return None
+    try:
+        with open(CAPTURED_REQUEST_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        logger.info(f'캡처 파일 로드: {data.get("url")}')
+        return data
+    except Exception as e:
+        logger.warning(f'캡처 파일 로드 실패: {e}')
+        return None
+
+
 async def fetch_room_data(page) -> list[dict]:
     """
-    페이지 새로고침 → 자동 발생하는 POST 응답을 직접 가로채어 데이터 수집.
-    POST 재실행(replay) 없이 브라우저가 직접 보내는 요청을 활용.
-    쿠키·세션 불일치 문제를 원천 차단.
+    scraper.py 가 저장한 captured_request.json 을 읽어 POST 재실행.
+    브라우저 세션 쿠키를 자동 공유 — 원본 scraper.py 와 동일한 replay 방식.
+    파일이 없으면 goto() + response 가로채기로 폴백.
     """
+    captured = load_captured_request()
+
+    if captured:
+        # 파일에서 로드한 URL·body 로 직접 POST 재실행
+        try:
+            response = await page.request.post(
+                captured['url'],
+                data=captured['body'],
+                headers={
+                    'Content-Type': captured['headers'].get(
+                        'content-type', 'application/x-www-form-urlencoded; charset=UTF-8'
+                    ),
+                    'Referer':          captured['headers'].get('referer', ''),
+                    'User-Agent':       captured['headers'].get('user-agent', ''),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            )
+            if not response.ok:
+                logger.warning(f'POST 응답 오류: {response.status}')
+                return []
+
+            # JSON 파싱 실패 시 응답 앞부분 출력 (디버깅)
+            try:
+                data = await response.json()
+            except Exception as e:
+                text = await response.text()
+                logger.error(f'JSON 파싱 실패: {e} | 응답 앞 200자: {text[:200]}')
+                return []
+
+            rows = data.get('rows') or data.get('list') or data.get('data') or []
+            if not rows:
+                logger.warning(f'응답에 데이터 없음 — 키 목록: {list(data.keys())}')
+                return []
+
+            logger.info(f'객실 데이터 수신: {len(rows)}개')
+            return [map_room(r) for r in rows]
+
+        except Exception as e:
+            logger.error(f'fetch_room_data(replay) 실패: {e}')
+            return []
+
+    # 캡처 파일 없음 — goto() + response 이벤트로 폴백
+    logger.warning('captured_request.json 없음 — goto 방식으로 폴백')
     rows_result: list[dict] = []
     data_event  = asyncio.Event()
 
@@ -162,11 +226,10 @@ async def fetch_room_data(page) -> list[dict]:
             rows = data.get('rows') or data.get('list') or data.get('data') or []
             if rows:
                 rows_result.extend([map_room(r) for r in rows])
-                logger.info(f'객실 데이터 수신: {len(rows)}개')
+                logger.info(f'객실 데이터 수신(폴백): {len(rows)}개')
             else:
                 logger.warning(f'응답에 데이터 없음 — 키 목록: {list(data.keys())}')
         except Exception as e:
-            # JSON 파싱 실패 시 응답 앞부분을 로그에 출력 (디버깅용)
             try:
                 text = await response.text()
                 logger.error(f'JSON 파싱 실패: {e} | 응답 앞 200자: {text[:200]}')
@@ -177,15 +240,13 @@ async def fetch_room_data(page) -> list[dict]:
 
     page.on('response', handle_response)
     try:
-        # 현재 URL로 재이동 — reload() 는 ExtJS 세션 리셋으로 인증 실패 발생
-        # goto() 는 초기 진입과 동일한 방식으로 SPA가 POST를 정상 발생시킴
         current_url = page.url
         await page.goto(current_url, wait_until='domcontentloaded', timeout=20000)
         await asyncio.wait_for(data_event.wait(), timeout=30)
     except asyncio.TimeoutError:
         logger.warning('데이터 응답 대기 시간 초과 (30초)')
     except Exception as e:
-        logger.error(f'fetch_room_data 실패: {e}')
+        logger.error(f'fetch_room_data(폴백) 실패: {e}')
     finally:
         page.remove_listener('response', handle_response)
 

@@ -2,7 +2,11 @@ import asyncio
 import logging
 import sys
 import os
+import json
 from datetime import datetime
+
+# 캡처된 요청 정보를 저장할 파일 경로
+CAPTURED_REQUEST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'captured_request.json')
 
 # 스크립트 폴더를 모듈 검색 경로에 추가 (다른 위치에서 실행해도 config 임포트 가능)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -156,10 +160,17 @@ async def capture_request(page) -> bool:
             global _captured_request
             _captured_request = {
                 'url':     request.url,
-                'headers': request.headers,
+                'headers': dict(request.headers),
                 'body':    request.post_data,
             }
-            logger.info(f'POST 요청 캡처 완료: {request.url}')
+            # v2에서 재사용할 수 있도록 파일로 저장
+            try:
+                with open(CAPTURED_REQUEST_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(_captured_request, f, ensure_ascii=False, indent=2)
+                logger.info(f'POST 요청 캡처 완료: {request.url} → {CAPTURED_REQUEST_FILE} 저장')
+            except Exception as e:
+                logger.warning(f'캡처 정보 파일 저장 실패: {e}')
+                logger.info(f'POST 요청 캡처 완료: {request.url}')
             captured.set()
 
     page.on('request', handle_request)
