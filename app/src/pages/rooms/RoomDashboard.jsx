@@ -115,7 +115,7 @@ function RoomCard({ room }) {
           )}
           {/* BK — 달력 아이콘 */}
           {isBooked && (
-            <CalendarDays size={11} className="text-violet-400 shrink-0" />
+            <CalendarDays size={13} className="text-yellow-300 shrink-0" />
           )}
         </div>
         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cfg.text}`}>
