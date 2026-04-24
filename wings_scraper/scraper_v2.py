@@ -126,68 +126,22 @@ async def login(page) -> bool:
 
 async def go_to_room_indicator(page) -> bool:
     """
-    Room Indicator 메뉴 이동.
-    1단계: 좌측 상단 별표(즐겨찾기) 버튼 클릭 → 최근 메뉴 패널 오픈
-    2단계: 패널에서 'Room Indicator' 링크 클릭
+    Room Indicator 페이지로 직접 URL 이동.
+    WINGS_LOGIN_URL(기본: https://wings.kolon.com/pms) + /view/fd01_2400.do
+    로그인 세션이 유지된 상태에서 직접 이동 가능.
     """
-    logger.info('Room Indicator 메뉴 클릭 시도')
+    # PMS base URL 추출 (로그인 URL에서 마지막 경로 제거)
+    base_url = WINGS_LOGIN_URL.rstrip('/')
+    room_indicator_url = f'{base_url}/view/fd01_2400.do'
+
+    logger.info(f'Room Indicator 직접 이동: {room_indicator_url}')
     try:
-        await asyncio.sleep(2)
-
-        # 1단계: 별표(★/☆) 버튼 또는 즐겨찾기 관련 요소 클릭 → 메뉴 패널 열기
-        star_clicked = await page.evaluate('''() => {
-            const candidates = [...document.querySelectorAll('a, button, span, div, li')]
-            for (const el of candidates) {
-                const text = el.textContent.trim()
-                const cls  = (el.className || '').toString().toLowerCase()
-                if (text === '★' || text === '☆' ||
-                    cls.includes('star') || cls.includes('shortcut') ||
-                    cls.includes('favorite') || cls.includes('fav')) {
-                    el.click()
-                    return true
-                }
-            }
-            return false
-        }''')
-
-        if star_clicked:
-            logger.info('별표 버튼 클릭 — 메뉴 패널 오픈 대기')
-            await asyncio.sleep(3)
-        else:
-            logger.info('별표 버튼 미발견 — Room Indicator 직접 탐색')
-
-        # 2단계: 'Room Indicator' 포함 링크 클릭
-        # includes 사용 — "0 Room Indicator" 같이 번호 붙은 경우도 대응
-        clicked = await page.evaluate('''() => {
-            const links = [...document.querySelectorAll('a')]
-            for (const el of links) {
-                if ((el.textContent || '').includes('Room Indicator')) {
-                    el.click()
-                    return true
-                }
-            }
-            return false
-        }''')
-
-        # Playwright locator fallback
-        if not clicked:
-            try:
-                await page.get_by_text('Room Indicator', exact=True).first.click(timeout=5000)
-                clicked = True
-                logger.info('Room Indicator 클릭 완료 (locator fallback)')
-            except Exception:
-                pass
-
-        if not clicked:
-            logger.warning('Room Indicator 메뉴를 찾지 못함')
-            return False
-
-        await asyncio.sleep(3)
-        logger.info('Room Indicator 이동 완료')
+        await page.goto(room_indicator_url, wait_until='domcontentloaded', timeout=20000)
+        await asyncio.sleep(3)  # 페이지 내 ExtJS 렌더링 대기
+        logger.info('Room Indicator 페이지 이동 완료')
         return True
-
     except Exception as e:
-        logger.warning(f'Room Indicator 이동 실패: {e}')
+        logger.warning(f'Room Indicator 직접 이동 실패: {e}')
         return False
 
 
