@@ -218,10 +218,12 @@ export default function RoomDashboard() {
   const floorFilter   = useRoomFilterStore((s) => s.floorFilter)
   const statusFilters = useRoomFilterStore((s) => s.statusFilters)
   const bkOnly        = useRoomFilterStore((s) => s.bkOnly)
+  const ngOnly        = useRoomFilterStore((s) => s.ngOnly)
   const search        = useRoomFilterStore((s) => s.search)
   const setFloorFilter   = useRoomFilterStore((s) => s.setFloorFilter)
   const setStatusFilters = useRoomFilterStore((s) => s.setStatusFilters)
   const setBkOnly        = useRoomFilterStore((s) => s.setBkOnly)
+  const setNgOnly        = useRoomFilterStore((s) => s.setNgOnly)
   const setSearch        = useRoomFilterStore((s) => s.setSearch)
   // 카드 탭 시 상세 시트에 표시할 객실 — 로컬 상태 유지
   const [selectedRoom, setSelectedRoom] = useState(null)
@@ -244,6 +246,9 @@ export default function RoomDashboard() {
 
   // BK 객실 수
   const bkCount = useMemo(() => rooms.filter((r) => r.room_status === 'BK').length, [rooms])
+
+  // NG(청소중) 객실 수
+  const ngCount = useMemo(() => rooms.filter((r) => r.clean_sts_text === 'NG').length, [rooms])
 
   // count > 0 인 상태 목록
   const availableStatuses = useMemo(
@@ -270,24 +275,25 @@ export default function RoomDashboard() {
   // ALL 버튼 클릭 — 전체 해제
   const handleAll = () => setStatusFilters(new Set())
 
-  // 필터 + 검색 적용
+  // 필터 + 검색 적용 — 모든 조건 AND
   const filtered = useMemo(() => {
     return rooms.filter((r) => {
+      // 층 필터
       if (floorFilter !== '전체' && r.floor_code !== floorFilter) return false
-      // 상태 필터 + BK 필터 OR 조건 — 둘 중 하나라도 해당하면 통과
-      const hasStatusFilter = statusFilters.size > 0
-      const matchStatus     = hasStatusFilter && statusFilters.has(r.room_sts_text)
-      const matchBk         = bkOnly && r.room_status === 'BK'
-      if (hasStatusFilter || bkOnly) {
-        if (!matchStatus && !matchBk) return false
-      }
+      // 상태 필터 — 선택된 코드 중 하나라도 해당 (상태끼리는 OR, 나머지와는 AND)
+      if (statusFilters.size > 0 && !statusFilters.has(r.room_sts_text)) return false
+      // BK 필터 — AND 조건
+      if (bkOnly && r.room_status !== 'BK') return false
+      // NG 필터 — AND 조건
+      if (ngOnly && r.clean_sts_text !== 'NG') return false
+      // 검색
       if (search) {
         const q = search.toLowerCase()
         if (!r.room_no?.toLowerCase().includes(q)) return false
       }
       return true
     })
-  }, [rooms, floorFilter, statusFilters, bkOnly, search])
+  }, [rooms, floorFilter, statusFilters, bkOnly, ngOnly, search])
 
   return (
     <div className="px-4 pt-4 pb-32 max-w-5xl mx-auto">
@@ -349,6 +355,22 @@ export default function RoomDashboard() {
             <CalendarDays size={11} className={bkOnly ? 'text-yellow-300' : 'text-white/40'} />
             <span>BK</span>
             <span className={bkOnly ? 'text-yellow-300/70' : 'text-white/30'}>{bkCount}</span>
+          </button>
+        )}
+
+        {/* NG 필터 버튼 — 청소중 객실만 표시 */}
+        {ngCount > 0 && (
+          <button
+            onClick={() => setNgOnly((v) => !v)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium
+              transition-all active:scale-95
+              ${ngOnly
+                ? 'bg-fuchsia-500/20 border-fuchsia-400/50 text-fuchsia-300'
+                : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+              }`}
+          >
+            <span>NG</span>
+            <span className={ngOnly ? 'text-fuchsia-300/70' : 'text-white/30'}>{ngCount}</span>
           </button>
         )}
 
