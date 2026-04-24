@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Loader2, Phone, Mail, MessageSquare, Pencil } from 'lucide-react'
+import { Loader2, Phone, Mail, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
 
@@ -30,8 +30,10 @@ export default function StaffDetailPage() {
   const navigate  = useNavigate()
   const { isManager } = useAuthStore()
 
-  const [staff, setStaff]   = useState(null)
+  const [staff, setStaff]     = useState(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const { user: currentUser } = useAuthStore()
 
   // ── 데이터 로드 ───────────────────────────────────
   useEffect(() => {
@@ -53,6 +55,25 @@ export default function StaffDetailPage() {
 
     fetchStaff()
   }, [id, navigate])
+
+  // ── 직원 삭제 (소프트) ───────────────────────────
+  const handleDelete = async () => {
+    if (id === currentUser?.id) return
+    if (!window.confirm('직원을 삭제하시겠습니까?\n작성한 기록은 그대로 보존됩니다.')) return
+
+    setDeleting(true)
+    const { error } = await supabase
+      .from('users')
+      .update({ is_deleted: true, is_active: false })
+      .eq('id', id)
+
+    if (error) {
+      alert('삭제 중 오류가 발생했습니다.')
+      setDeleting(false)
+      return
+    }
+    navigate('/staff', { replace: true })
+  }
 
   // ── 로딩 ─────────────────────────────────────────
   if (loading) {
@@ -167,17 +188,34 @@ export default function StaffDetailPage() {
         )}
       </div>
 
-      {/* 수정 버튼 — 관리자·소장·주임만 */}
+      {/* 수정 + 삭제 버튼 — 관리자·소장·주임만 */}
       {isManager() && (
-        <button
-          onClick={() => navigate(`/settings/users/${id}/edit`)}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl
-            border border-white/20 text-white/60
-            hover:bg-white/5 text-sm font-medium transition-all active:scale-[0.98]"
-        >
-          <Pencil size={15} />
-          직원 정보 수정
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => navigate(`/settings/users/${id}/edit`)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl
+              border border-white/20 text-white/60
+              hover:bg-white/5 text-sm font-medium transition-all active:scale-[0.98]"
+          >
+            <Pencil size={15} />
+            직원 정보 수정
+          </button>
+
+          {/* 자기 자신은 삭제 불가 */}
+          {id !== currentUser?.id && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl
+                border border-red-500/20 text-red-400 bg-red-500/10
+                hover:bg-red-500/20 text-sm font-medium transition-all active:scale-[0.98]
+                disabled:opacity-40"
+            >
+              {deleting ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+              {deleting ? '삭제 중...' : '직원 삭제'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
