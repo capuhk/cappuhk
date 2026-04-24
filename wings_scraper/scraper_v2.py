@@ -8,8 +8,9 @@ from datetime import datetime
 # 스크립트 폴더를 모듈 검색 경로에 추가
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# scraper.py 가 저장한 캡처 파일 경로
+# POST 캡처 정보 저장 파일 — 최초 1회 수동 캡처 후 자동으로 재사용
 CAPTURED_REQUEST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'captured_request.json')
+
 from playwright.async_api import async_playwright
 from config import (
     WINGS_LOGIN_URL, WINGS_URL,
@@ -128,32 +129,60 @@ async def login(page) -> bool:
         return False
 
 
-async def go_to_room_indicator(page) -> bool:
+async def capture_and_save(page) -> bool:
     """
-    Room Indicator 페이지 직접 이동.
-    로그인 후 세션이 살아있으면 직접 URL 접근 가능.
+    최초 1회 수동 설정.
+    사용자가 브라우저에서 Room Indicator 페이지로 이동 후 Enter →
+    새로고침 클릭 → POST 자동 캡처 → captured_request.json 저장.
+    이후 scraper_v2 는 파일을 읽어 완전 자동으로 동작.
     """
-    base_url = WINGS_LOGIN_URL.rstrip('/')
-    # 로그인 URL에서 /login 경로 제거해 base 추출
-    if '/login' in base_url:
-        base_url = base_url[:base_url.index('/login')]
-    room_indicator_url = f'{base_url}/view/fd01_2400.do'
-    logger.info(f'Room Indicator 직접 이동: {room_indicator_url}')
+    print('\n============================================')
+    print('  [최초 1회 설정] Room Indicator 페이지로 이동해주세요')
+    print('  별표 메뉴 또는 메인 메뉴에서 Room Indicator 클릭')
+    print('  이동 완료 후 터미널에서 Enter를 누르세요')
+    print('============================================')
+
+    await asyncio.get_event_loop().run_in_executor(
+        None, input, '\nRoom Indicator 이동 완료 후 Enter...'
+    )
+
+    print('\n>> 브라우저에서 새로고침(F5) 또는 새로고침 버튼을 클릭해주세요!')
+    logger.info('POST 캡처 대기 중 — 브라우저 새로고침 필요')
+
+    captured_event = asyncio.Event()
+    result: dict = {}
+
+    async def handle_request(request):
+        if 'searchListRoomIndicator.do' in request.url and request.method == 'POST':
+            result['url']     = request.url
+            result['headers'] = dict(request.headers)
+            result['body']    = request.post_data
+            logger.info(f'POST 캡처 완료: {request.url}')
+            captured_event.set()
+
+    page.on('request', handle_request)
     try:
-        await page.goto(room_indicator_url, wait_until='domcontentloaded', timeout=20000)
-        await asyncio.sleep(3)
-        logger.info('Room Indicator 페이지 이동 완료')
-        return True
-    except Exception as e:
-        logger.warning(f'Room Indicator 이동 실패: {e}')
+        await asyncio.wait_for(captured_event.wait(), timeout=60)
+    except asyncio.TimeoutError:
+        logger.warning('POST 캡처 실패 (60초 대기)')
         return False
+    finally:
+        page.remove_listener('request', handle_request)
+
+    # captured_request.json 저장 → 이후 자동 replay 에 사용
+    try:
+        with open(CAPTURED_REQUEST_FILE, 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        logger.info(f'captured_request.json 저장 완료 → 이후 완전 자동 실행')
+    except Exception as e:
+        logger.error(f'파일 저장 실패: {e}')
+        return False
+
+    return True
 
 
 def load_captured_request() -> dict | None:
-    """
-    scraper.py 가 저장한 captured_request.json 로드.
-    파일이 없거나 읽기 실패 시 None 반환.
-    """
+    """captured_request.json 로드. 파일 없거나 오류 시 None 반환."""
     if not os.path.exists(CAPTURED_REQUEST_FILE):
         return None
     try:
@@ -168,89 +197,51 @@ def load_captured_request() -> dict | None:
 
 async def fetch_room_data(page) -> list[dict]:
     """
-    scraper.py 가 저장한 captured_request.json 을 읽어 POST 재실행.
-    브라우저 세션 쿠키를 자동 공유 — 원본 scraper.py 와 동일한 replay 방식.
-    파일이 없으면 goto() + response 가로채기로 폴백.
+    captured_request.json 의 URL·body 로 POST 재실행.
+    브라우저 세션 쿠키 자동 공유 — 로그인된 세션에서 직접 API 호출.
     """
     captured = load_captured_request()
+    if not captured:
+        logger.error('캡처 파일 없음 — setup() 에서 수동 캡처 필요')
+        return []
 
-    if captured:
-        # 파일에서 로드한 URL·body 로 직접 POST 재실행
-        try:
-            response = await page.request.post(
-                captured['url'],
-                data=captured['body'],
-                headers={
-                    'Content-Type': captured['headers'].get(
-                        'content-type', 'application/x-www-form-urlencoded; charset=UTF-8'
-                    ),
-                    'Referer':          captured['headers'].get('referer', ''),
-                    'User-Agent':       captured['headers'].get('user-agent', ''),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            )
-            if not response.ok:
-                logger.warning(f'POST 응답 오류: {response.status}')
-                return []
+    try:
+        response = await page.request.post(
+            captured['url'],
+            data=captured['body'],
+            headers={
+                'Content-Type': captured['headers'].get(
+                    'content-type', 'application/x-www-form-urlencoded; charset=UTF-8'
+                ),
+                'Referer':          captured['headers'].get('referer', ''),
+                'User-Agent':       captured['headers'].get('user-agent', ''),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        )
 
-            # JSON 파싱 실패 시 응답 앞부분 출력 (디버깅)
-            try:
-                data = await response.json()
-            except Exception as e:
-                text = await response.text()
-                logger.error(f'JSON 파싱 실패: {e} | 응답 앞 200자: {text[:200]}')
-                return []
-
-            rows = data.get('rows') or data.get('list') or data.get('data') or []
-            if not rows:
-                logger.warning(f'응답에 데이터 없음 — 키 목록: {list(data.keys())}')
-                return []
-
-            logger.info(f'객실 데이터 수신: {len(rows)}개')
-            return [map_room(r) for r in rows]
-
-        except Exception as e:
-            logger.error(f'fetch_room_data(replay) 실패: {e}')
+        if not response.ok:
+            logger.warning(f'POST 응답 오류: {response.status}')
             return []
 
-    # 캡처 파일 없음 — goto() + response 이벤트로 폴백
-    logger.warning('captured_request.json 없음 — goto 방식으로 폴백')
-    rows_result: list[dict] = []
-    data_event  = asyncio.Event()
-
-    async def handle_response(response):
-        if 'searchListRoomIndicator.do' not in response.url:
-            return
         try:
             data = await response.json()
-            rows = data.get('rows') or data.get('list') or data.get('data') or []
-            if rows:
-                rows_result.extend([map_room(r) for r in rows])
-                logger.info(f'객실 데이터 수신(폴백): {len(rows)}개')
-            else:
-                logger.warning(f'응답에 데이터 없음 — 키 목록: {list(data.keys())}')
         except Exception as e:
-            try:
-                text = await response.text()
-                logger.error(f'JSON 파싱 실패: {e} | 응답 앞 200자: {text[:200]}')
-            except Exception:
-                logger.error(f'JSON 파싱 실패: {e}')
-        finally:
-            data_event.set()
+            # JSON 파싱 실패 시 응답 앞부분 출력 (세션 만료 진단)
+            text = await response.text()
+            logger.error(f'JSON 파싱 실패 (세션 만료 의심): {e} | 응답 앞 200자: {text[:200]}')
+            return []
 
-    page.on('response', handle_response)
-    try:
-        current_url = page.url
-        await page.goto(current_url, wait_until='domcontentloaded', timeout=20000)
-        await asyncio.wait_for(data_event.wait(), timeout=30)
-    except asyncio.TimeoutError:
-        logger.warning('데이터 응답 대기 시간 초과 (30초)')
+        rows = data.get('rows') or data.get('list') or data.get('data') or []
+        if not rows:
+            logger.warning(f'응답에 데이터 없음 — 키 목록: {list(data.keys())}')
+            return []
+
+        logger.info(f'객실 데이터 수신: {len(rows)}개')
+        return [map_room(r) for r in rows]
+
     except Exception as e:
-        logger.error(f'fetch_room_data(폴백) 실패: {e}')
-    finally:
-        page.remove_listener('response', handle_response)
-
-    return rows_result
+        logger.error(f'fetch_room_data 실패: {e}')
+        return []
 
 
 async def scrape_once(page) -> bool:
@@ -271,36 +262,41 @@ async def scrape_once(page) -> bool:
 
 async def setup(page) -> bool:
     """
-    초기 설정 — 로그인 → Room Indicator 이동.
-    이후 fetch_room_data 가 reload 로 데이터를 직접 수집.
-    실패 시 False 반환.
+    초기 설정 — 자동 로그인 후:
+    - captured_request.json 있으면: 완전 자동 (파일 로드만)
+    - 없으면: 수동 1회 안내 → POST 캡처 → 파일 저장
     """
-    # 1. 자동 로그인
+    # 자동 로그인
     ok = await login(page)
     if not ok:
-        logger.error('로그인 실패 — 종료')
+        logger.error('로그인 실패')
         return False
 
-    # 2. Room Indicator 직접 이동
-    ok = await go_to_room_indicator(page)
-    if not ok:
-        logger.error('Room Indicator 이동 실패 — 종료')
-        return False
+    # 캡처 파일 없으면 최초 1회 수동 설정
+    if not os.path.exists(CAPTURED_REQUEST_FILE):
+        logger.info('captured_request.json 없음 — 최초 수동 설정 시작')
+        ok = await capture_and_save(page)
+        if not ok:
+            logger.error('수동 캡처 실패')
+            return False
+        logger.info('수동 설정 완료 — 이후 완전 자동 실행')
+    else:
+        logger.info('captured_request.json 확인 — 완전 자동 모드')
 
     return True
 
 
 async def main():
     """
-    메인 루프 — 완전 자동화 버전.
-    로그인 → Room Indicator → POST 캡처 → 반복 수집.
-    세션 만료(3회 연속 실패) 시 자동 재로그인.
+    메인 루프.
+    최초 1회: 자동 로그인 → 수동 Room Indicator 이동 → POST 캡처·저장
+    이후: 자동 로그인 → POST replay 반복 수집
+    세션 만료(3회 연속 실패) 시 캡처 파일 삭제 후 재설정.
     """
     logger.info('WINGS 스크래퍼 v2 시작')
 
     async with async_playwright() as pw:
-        # headless=False — 브라우저 표시 (동작 확인용)
-        # 검증 완료 후 headless=True 로 변경하면 완전 백그라운드 실행
+        # headless=False — 수동 설정 시 브라우저 조작 필요
         browser = await pw.chromium.launch(headless=False)
         context = await browser.new_context()
         page    = await context.new_page()
@@ -312,7 +308,7 @@ async def main():
             return
 
         logger.info('초기 설정 완료 — 반복 수집 시작')
-        fail_count       = 0
+        fail_count        = 0
         was_outside_hours = False  # 운영 시간 외 대기 여부 추적
 
         while True:
@@ -331,7 +327,7 @@ async def main():
             if was_outside_hours:
                 was_outside_hours = False
                 logger.info('운영 시간 재진입 — 세션 갱신을 위해 재로그인')
-                ok = await setup(page)
+                ok = await login(page)
                 if not ok:
                     logger.error('재로그인 실패 — 60초 후 재시도')
                     await asyncio.sleep(60)
@@ -347,10 +343,10 @@ async def main():
                 fail_count += 1
                 logger.warning(f'연속 실패 {fail_count}회')
 
-                # 3회 연속 실패 시 자동 재로그인
+                # 3회 연속 실패 → 세션 만료 의심 → 재로그인
                 if fail_count >= 3:
-                    logger.info('세션 만료 의심 — 자동 재로그인 시도')
-                    ok = await setup(page)
+                    logger.info('세션 만료 의심 — 재로그인 시도')
+                    ok = await login(page)
                     if ok:
                         fail_count = 0
                         logger.info('재로그인 성공')
