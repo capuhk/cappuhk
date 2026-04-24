@@ -1,9 +1,15 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ListChecks, Bed, ConciergeBell } from 'lucide-react'
+import { ListChecks, Bed, ConciergeBell, Hotel } from 'lucide-react'
 import useAuthStore from '../../store/useAuthStore'
 
-// 탭 정의 — roles: 해당 탭이 보이는 역할 목록
+// 탭 정의 — roles: null이면 전체 공개
 const TABS = [
+  {
+    path: '/rooms',
+    label: '객실현황',
+    Icon: Hotel,
+    roles: null, // 전체 공개
+  },
   {
     path: '/inspection',
     label: '인스펙션',
@@ -30,8 +36,8 @@ export default function BottomTabBar() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
 
-  // 역할에 따라 보이는 탭 필터링
-  const visibleTabs = TABS.filter((tab) => tab.roles.includes(user?.role))
+  // 역할에 따라 보이는 탭 필터링 — roles null이면 전체 공개
+  const visibleTabs = TABS.filter((tab) => tab.roles === null || tab.roles.includes(user?.role))
 
   return (
     /* safe-area-inset-bottom 로 홈 인디케이터 영역 확장 */
