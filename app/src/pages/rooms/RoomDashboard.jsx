@@ -207,10 +207,13 @@ export default function RoomDashboard() {
   const filtered = useMemo(() => {
     return rooms.filter((r) => {
       if (floorFilter !== '전체' && r.floor_code !== floorFilter) return false
-      // 다중 선택 필터 — 비어있으면 전체
-      if (statusFilters.size > 0 && !statusFilters.has(r.room_sts_text)) return false
-      // BK 필터
-      if (bkOnly && r.room_status !== 'BK') return false
+      // 상태 필터 + BK 필터 OR 조건 — 둘 중 하나라도 해당하면 통과
+      const hasStatusFilter = statusFilters.size > 0
+      const matchStatus     = hasStatusFilter && statusFilters.has(r.room_sts_text)
+      const matchBk         = bkOnly && r.room_status === 'BK'
+      if (hasStatusFilter || bkOnly) {
+        if (!matchStatus && !matchBk) return false
+      }
       if (search) {
         const q = search.toLowerCase()
         if (!r.room_no?.toLowerCase().includes(q)) return false
