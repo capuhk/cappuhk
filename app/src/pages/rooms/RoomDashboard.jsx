@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, RefreshCw, Loader2, Hotel, User } from 'lucide-react'
+import { Search, RefreshCw, Loader2, Hotel, CalendarDays } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import dayjs from 'dayjs'
 
@@ -16,18 +16,14 @@ const STATUS_CONFIG = {
   OI: { label: 'OI', desc: '투숙/점검완료', bg: 'bg-cyan-950',   border: 'border-cyan-700',    text: 'text-cyan-300' },
 }
 
-// 상태 필터 칩 목록 (전체 포함)
-const STATUS_FILTERS = ['전체', 'VD', 'VI', 'VC', 'OC', 'OD', 'OO', 'OI']
-
 // ─────────────────────────────────────────────
 // useRooms — Supabase Realtime 구독 + 초기 로드
 // ─────────────────────────────────────────────
 function useRooms() {
-  const [rooms, setRooms]         = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [rooms, setRooms]             = useState([])
+  const [loading, setLoading]         = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
 
-  // 전체 객실 데이터 조회
   const fetchRooms = async () => {
     setLoading(true)
     try {
@@ -47,7 +43,6 @@ function useRooms() {
   }
 
   useEffect(() => {
-    // 초기 로드
     fetchRooms()
 
     // Realtime 구독 — 스크래퍼 upsert 시 자동 갱신
@@ -57,7 +52,6 @@ function useRooms() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'rooms' },
         (payload) => {
-          // 변경된 row만 교체 (전체 재조회 대신 성능 최적화)
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             setRooms((prev) => {
               const idx = prev.findIndex((r) => r.room_no === payload.new.room_no)
@@ -74,9 +68,7 @@ function useRooms() {
       )
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   return { rooms, loading, lastUpdated, refetch: fetchRooms }
@@ -87,27 +79,43 @@ function useRooms() {
 // ─────────────────────────────────────────────
 function RoomCard({ room }) {
   const cfg = STATUS_CONFIG[room.room_sts_text] || {
-    label: room.room_sts_text || '?',
-    desc:  '알 수 없음',
-    bg:    'bg-zinc-900',
+    label:  room.room_sts_text || '?',
+    desc:   '알 수 없음',
+    bg:     'bg-zinc-900',
     border: 'border-zinc-700',
-    text:  'text-zinc-400',
+    text:   'text-zinc-400',
   }
 
-  // 체크아웃 예정 여부 (오늘 퇴실)
+  // 오늘 체크아웃 예정
   const isDeparting = room.dept_date && room.dept_date === dayjs().format('YYYY-MM-DD')
-  // 체크인 예정 여부 (오늘 입실)
-  const isArriving  = room.arrv_date && room.arrv_date === dayjs().format('YYYY-MM-DD') && !room.inhs_gest_name
+  // 오늘 체크인 예정
+  const isArriving  = room.arrv_date && room.arrv_date === dayjs().format('YYYY-MM-DD')
+  // BK — 예약 배정 상태
+  const isBooked    = room.room_status === 'BK'
+  // 재실 여부 (I=재실)
+  const isInRoom    = room.inroom_status === 'I'
 
   return (
     <div className={`relative rounded-xl border p-3 ${cfg.bg} ${cfg.border} transition-all`}>
-      {/* 객실번호 + 상태 뱃지 */}
+      {/* 객실번호 + 아이콘 행 */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1">
           <span className="text-white font-bold text-sm">{room.room_no}</span>
-          {/* 재실 여부 — inroom_status I=재실, V=공실 */}
-          {room.inroom_status === 'I' && (
-            <User size={11} className="text-white/60" />
+          {/* 재실 — 채워진 사람 아이콘 (SVG fill) */}
+          {isInRoom && (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="11" height="11"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="text-white/70 shrink-0"
+            >
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
+            </svg>
+          )}
+          {/* BK — 달력 아이콘 */}
+          {isBooked && (
+            <CalendarDays size={11} className="text-violet-400 shrink-0" />
           )}
         </div>
         <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${cfg.text}`}>
@@ -115,7 +123,7 @@ function RoomCard({ room }) {
         </span>
       </div>
 
-      {/* 체크아웃/체크인 예정 뱃지 */}
+      {/* 뱃지 행 */}
       <div className="flex gap-1 flex-wrap">
         {isDeparting && (
           <span className="text-xs bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">ED</span>
@@ -125,9 +133,6 @@ function RoomCard({ room }) {
         )}
         {room.lsos_code && (
           <span className="text-xs bg-white/10 text-white/50 px-1.5 py-0.5 rounded">{room.lsos_code}</span>
-        )}
-        {room.nights && (
-          <span className="text-xs text-white/30">{room.nights}박</span>
         )}
       </div>
 
@@ -147,32 +152,18 @@ function RoomCard({ room }) {
 export default function RoomDashboard() {
   const { rooms, loading, lastUpdated, refetch } = useRooms()
 
-  const [floorFilter,  setFloorFilter]  = useState('전체')
-  const [statusFilter, setStatusFilter] = useState('전체')
-  const [search,       setSearch]       = useState('')
+  const [floorFilter,   setFloorFilter]   = useState('전체')
+  // 다중 선택 필터 — Set으로 관리, 비어있으면 전체(ALL)
+  const [statusFilters, setStatusFilters] = useState(new Set())
+  const [search,        setSearch]        = useState('')
 
-  // 층 목록 동적 생성 (실제 데이터 기준)
+  // 층 목록 동적 생성
   const floors = useMemo(() => {
     const set = new Set(rooms.map((r) => r.floor_code).filter(Boolean))
     return ['전체', ...Array.from(set).sort()]
   }, [rooms])
 
-  // 필터 + 검색 적용
-  const filtered = useMemo(() => {
-    return rooms.filter((r) => {
-      if (floorFilter  !== '전체' && r.floor_code    !== floorFilter)  return false
-      if (statusFilter !== '전체' && r.room_sts_text !== statusFilter) return false
-      if (search) {
-        const q = search.toLowerCase()
-        const matchRoom  = r.room_no?.toLowerCase().includes(q)
-        const matchGuest = r.inhs_gest_name?.toLowerCase().includes(q)
-        if (!matchRoom && !matchGuest) return false
-      }
-      return true
-    })
-  }, [rooms, floorFilter, statusFilter, search])
-
-  // 상태별 카운트 (요약 표시용)
+  // 상태별 카운트
   const counts = useMemo(() => {
     const map = {}
     for (const r of rooms) {
@@ -181,6 +172,45 @@ export default function RoomDashboard() {
     }
     return map
   }, [rooms])
+
+  // count > 0 인 상태 목록
+  const availableStatuses = useMemo(
+    () => Object.keys(STATUS_CONFIG).filter((code) => counts[code] > 0),
+    [counts],
+  )
+
+  // ALL 활성 여부 — 선택 없거나 전체 선택된 경우
+  const isAll = statusFilters.size === 0 || statusFilters.size === availableStatuses.length
+
+  // 상태 칩 토글 핸들러
+  const toggleStatus = (code) => {
+    setStatusFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(code)) {
+        next.delete(code)
+      } else {
+        next.add(code)
+      }
+      return next
+    })
+  }
+
+  // ALL 버튼 클릭 — 전체 해제
+  const handleAll = () => setStatusFilters(new Set())
+
+  // 필터 + 검색 적용
+  const filtered = useMemo(() => {
+    return rooms.filter((r) => {
+      if (floorFilter !== '전체' && r.floor_code !== floorFilter) return false
+      // 다중 선택 필터 — 비어있으면 전체
+      if (statusFilters.size > 0 && !statusFilters.has(r.room_sts_text)) return false
+      if (search) {
+        const q = search.toLowerCase()
+        if (!r.room_no?.toLowerCase().includes(q)) return false
+      }
+      return true
+    })
+  }, [rooms, floorFilter, statusFilters, search])
 
   return (
     <div className="px-4 pt-4 pb-32 max-w-5xl mx-auto">
@@ -193,13 +223,11 @@ export default function RoomDashboard() {
           <span className="text-white/30 text-xs">({rooms.length}실)</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* 마지막 업데이트 시각 */}
           {lastUpdated && (
             <span className="text-white/30 text-xs">
               {dayjs(lastUpdated).format('HH:mm')} 갱신
             </span>
           )}
-          {/* 새로고침 버튼 */}
           <button
             onClick={refetch}
             disabled={loading}
@@ -214,24 +242,40 @@ export default function RoomDashboard() {
         </div>
       </div>
 
-      {/* 상태별 카운트 요약 */}
+      {/* 상태 필터 칩 (ALL + 다중 선택) */}
       <div className="flex flex-wrap gap-2 mb-4">
+        {/* ALL 버튼 */}
+        <button
+          onClick={handleAll}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium
+            transition-all active:scale-95
+            ${isAll
+              ? 'bg-white/20 border-white/30 text-white'
+              : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+            }`}
+        >
+          ALL
+          <span className={isAll ? 'text-white/70' : 'text-white/30'}>{rooms.length}</span>
+        </button>
+
+        {/* 상태별 칩 — count > 0 인 것만 표시 */}
         {Object.entries(STATUS_CONFIG).map(([code, cfg]) => {
           const cnt = counts[code] || 0
           if (!cnt) return null
+          const isActive = statusFilters.has(code)
           return (
             <button
               key={code}
-              onClick={() => setStatusFilter(statusFilter === code ? '전체' : code)}
+              onClick={() => toggleStatus(code)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium
                 transition-all active:scale-95
-                ${statusFilter === code
+                ${isActive
                   ? `${cfg.bg} ${cfg.border} ${cfg.text}`
                   : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
                 }`}
             >
               <span>{code}</span>
-              <span className={statusFilter === code ? cfg.text : 'text-white/30'}>{cnt}</span>
+              <span className={isActive ? cfg.text : 'text-white/30'}>{cnt}</span>
             </button>
           )
         })}
@@ -261,7 +305,7 @@ export default function RoomDashboard() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="객실번호 또는 투숙객 검색"
+          placeholder="객실번호 검색"
           className="w-full pl-8 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl
             text-white text-sm placeholder:text-white/25 outline-none
             focus:border-white/30 transition-colors"
