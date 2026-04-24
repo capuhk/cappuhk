@@ -296,8 +296,10 @@ async def main():
     logger.info('WINGS 스크래퍼 v2 시작')
 
     async with async_playwright() as pw:
-        # headless=False — 수동 설정 시 브라우저 조작 필요
-        browser = await pw.chromium.launch(headless=False)
+        # captured_request.json 있으면 headless=True (완전 백그라운드)
+        # 없으면 headless=False (수동 설정 시 브라우저 조작 필요)
+        has_capture = os.path.exists(CAPTURED_REQUEST_FILE)
+        browser = await pw.chromium.launch(headless=has_capture)
         context = await browser.new_context()
         page    = await context.new_page()
 
