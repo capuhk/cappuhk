@@ -43,6 +43,7 @@ FIELD_MAP = {
     'BALANCE_AMT':          'balance_amt',
     'LSOS_CODE':            'lsos_code',
     'ROOM_SALES_STS_TEXT':  'room_sales_sts_text',
+    'CLEAN_STS_TEXT':       'clean_sts_text',       # 청소 상태 (NG=청소중, OR=청소전 등)
 }
 
 

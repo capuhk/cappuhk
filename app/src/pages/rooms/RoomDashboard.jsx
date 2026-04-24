@@ -183,6 +183,10 @@ function RoomCard({ room, onSelect }) {
 
       {/* 뱃지 행 */}
       <div className="flex gap-1 flex-wrap">
+        {/* 청소중 — CLEAN_STS_TEXT = NG */}
+        {room.clean_sts_text === 'NG' && (
+          <span className="text-xs bg-fuchsia-500/20 text-fuchsia-300 px-1.5 py-0.5 rounded">NG</span>
+        )}
         {isDeparting && (
           <span className="text-xs bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">ED</span>
         )}
