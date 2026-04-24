@@ -41,6 +41,7 @@ export default function StaffListPage() {
         .from('users')
         .select('id, name, email, role, phone, avatar_url, is_active, is_locked')
         .eq('is_active', true)
+        .eq('is_deleted', false)
         .order('name', { ascending: true })
 
       if (!error) {

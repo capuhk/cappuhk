@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Loader2, Camera } from 'lucide-react'
+import { Loader2, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
 import { uploadAvatar } from '../../utils/imageUpload'
@@ -46,9 +46,10 @@ export default function UserFormPage() {
   const [resetPin, setResetPin] = useState(false)
 
   // ── UI 상태 ──────────────────────────────────
-  const [loading, setLoading] = useState(isEdit)
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState(null)
+  const [loading, setLoading]   = useState(isEdit)
+  const [saving, setSaving]     = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError]       = useState(null)
 
   // ── 수정 모드: 기존 데이터 로드 ──────────────
   useEffect(() => {
@@ -86,6 +87,29 @@ export default function UserFormPage() {
     // 로컬 미리보기 생성
     setAvatarPreview(URL.createObjectURL(file))
     e.target.value = ''
+  }
+
+  // ── 직원 삭제 (소프트) ────────────────────────
+  const handleDelete = async () => {
+    // 자기 자신은 삭제 불가
+    if (id === currentUser?.id) return
+    if (!window.confirm('직원을 삭제하시겠습니까?\n작성한 기록은 그대로 보존됩니다.')) return
+
+    setDeleting(true)
+    try {
+      const { error: delErr } = await supabase
+        .from('users')
+        .update({ is_deleted: true, is_active: false })
+        .eq('id', id)
+
+      if (delErr) throw delErr
+      navigate('/settings', { replace: true })
+    } catch (err) {
+      console.error(err)
+      setError('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   // ── 저장 ─────────────────────────────────────
@@ -406,6 +430,25 @@ export default function UserFormPage() {
                   ${isActive ? 'right-0.5' : 'left-0.5'}`} />
               </button>
             </div>
+
+            {/* 직원 삭제 — 자기 자신은 비활성 */}
+            {id !== currentUser?.id && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3.5
+                  bg-red-500/10 border border-red-500/20 rounded-xl
+                  text-red-400 text-sm hover:bg-red-500/20 transition-colors
+                  disabled:opacity-40"
+              >
+                {deleting
+                  ? <Loader2 size={15} className="animate-spin" />
+                  : <Trash2 size={15} />
+                }
+                {deleting ? '삭제 중...' : '직원 삭제'}
+              </button>
+            )}
           </section>
         )}
 
