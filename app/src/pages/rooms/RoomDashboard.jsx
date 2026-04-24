@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Search, RefreshCw, Loader2, Hotel, CalendarDays, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import dayjs from 'dayjs'
+import useRoomFilterStore from '../../store/useRoomFilterStore'
 
 // ─────────────────────────────────────────────
 // 객실 상태 코드 정의
@@ -209,14 +210,17 @@ function RoomCard({ room, onSelect }) {
 export default function RoomDashboard() {
   const { rooms, loading, lastUpdated, refetch } = useRooms()
 
-  const [floorFilter,   setFloorFilter]   = useState('전체')
-  // 다중 선택 필터 — Set으로 관리, 비어있으면 전체(ALL)
-  const [statusFilters, setStatusFilters] = useState(new Set())
-  // BK 필터 — room_status === 'BK' 인 객실만 표시
-  const [bkOnly,        setBkOnly]        = useState(false)
-  const [search,        setSearch]        = useState('')
-  // 카드 탭 시 상세 시트에 표시할 객실
-  const [selectedRoom,  setSelectedRoom]  = useState(null)
+  // 필터 상태 — Zustand 스토어로 관리해 페이지 이동 후 복귀 시에도 유지
+  const floorFilter   = useRoomFilterStore((s) => s.floorFilter)
+  const statusFilters = useRoomFilterStore((s) => s.statusFilters)
+  const bkOnly        = useRoomFilterStore((s) => s.bkOnly)
+  const search        = useRoomFilterStore((s) => s.search)
+  const setFloorFilter   = useRoomFilterStore((s) => s.setFloorFilter)
+  const setStatusFilters = useRoomFilterStore((s) => s.setStatusFilters)
+  const setBkOnly        = useRoomFilterStore((s) => s.setBkOnly)
+  const setSearch        = useRoomFilterStore((s) => s.setSearch)
+  // 카드 탭 시 상세 시트에 표시할 객실 — 로컬 상태 유지
+  const [selectedRoom, setSelectedRoom] = useState(null)
 
   // 층 목록 동적 생성
   const floors = useMemo(() => {
