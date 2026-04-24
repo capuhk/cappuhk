@@ -177,8 +177,10 @@ async def fetch_room_data(page) -> list[dict]:
 
     page.on('response', handle_response)
     try:
-        # 페이지 새로고침 → WINGS가 자동으로 searchListRoomIndicator.do POST 발생
-        await page.reload(wait_until='domcontentloaded', timeout=20000)
+        # 현재 URL로 재이동 — reload() 는 ExtJS 세션 리셋으로 인증 실패 발생
+        # goto() 는 초기 진입과 동일한 방식으로 SPA가 POST를 정상 발생시킴
+        current_url = page.url
+        await page.goto(current_url, wait_until='domcontentloaded', timeout=20000)
         await asyncio.wait_for(data_event.wait(), timeout=30)
     except asyncio.TimeoutError:
         logger.warning('데이터 응답 대기 시간 초과 (30초)')
