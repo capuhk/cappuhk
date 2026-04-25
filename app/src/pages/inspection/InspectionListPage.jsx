@@ -52,6 +52,7 @@ export default function InspectionListPage() {
           .select('work_date')
           .gte('work_date', dateFrom)
           .lte('work_date', dateTo)
+          .limit(10000)  // Supabase 기본 1000행 제한 우회 (날짜별 집계 누락 방지)
           .abortSignal(controller.signal)
 
         if (!error && data) {
