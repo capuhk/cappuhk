@@ -106,6 +106,7 @@ export default function InspectionListPage() {
         .select('id, room_no, status, note, work_date, created_at, users!author_id(name)')
         .eq('work_date', date)
         .order('created_at', { ascending: false })
+        .limit(10000)  // Phase 1과 동일한 제한 — 불일치 방지
 
       if (!error && data) {
         setDateCache((prev) => ({ ...prev, [date]: data }))
