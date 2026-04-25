@@ -22,4 +22,4 @@ SCRAPE_INTERVAL = int(os.getenv('SCRAPE_INTERVAL', '300'))  # 기본 5분
 
 # 운영 시간대 (이 범위 밖이면 대기)
 SCRAPE_HOUR_START = int(os.getenv('SCRAPE_HOUR_START', '6'))   # 기본 06시
-SCRAPE_HOUR_END   = int(os.getenv('SCRAPE_HOUR_END',   '24'))  # 기본 24시 (자정)
+SCRAPE_HOUR_END   = int(os.getenv('SCRAPE_HOUR_END',   '23'))  # 기본 23시
