@@ -108,6 +108,8 @@ export default function InspectionListPage() {
 
       if (!error && data) {
         setDateCache((prev) => ({ ...prev, [date]: data }))
+        // 실제 로드된 개수로 배지 카운트 동기화 (Phase 1 집계 후 추가/삭제된 경우 보정)
+        setDateCounts((prev) => ({ ...prev, [date]: data.length }))
         setOpenDates((prev) => new Set([...prev, date]))
       }
     } catch (err) {
