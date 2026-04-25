@@ -47,18 +47,15 @@ export default function InspectionListPage() {
       setDateCache({})   // 기간 변경 시 캐시 초기화
       setOpenDates(new Set())
       try {
+        // RPC로 서버에서 GROUP BY 집계 — Supabase max-rows 제한 우회
         const { data, error } = await supabase
-          .from('inspections')
-          .select('work_date')
-          .gte('work_date', dateFrom)
-          .lte('work_date', dateTo)
-          .limit(10000)  // Supabase 기본 1000행 제한 우회 (날짜별 집계 누락 방지)
+          .rpc('get_inspection_date_counts', { p_from: dateFrom, p_to: dateTo })
           .abortSignal(controller.signal)
 
         if (!error && data) {
-          // 클라이언트에서 날짜별 건수 집계
+          // { work_date, cnt } 배열 → { 'YYYY-MM-DD': number } 맵 변환
           const counts = data.reduce((acc, r) => {
-            acc[r.work_date] = (acc[r.work_date] || 0) + 1
+            acc[r.work_date] = Number(r.cnt)
             return acc
           }, {})
           setDateCounts(counts)
@@ -106,7 +103,6 @@ export default function InspectionListPage() {
         .select('id, room_no, status, note, work_date, created_at, users!author_id(name)')
         .eq('work_date', date)
         .order('created_at', { ascending: false })
-        .limit(10000)  // Phase 1과 동일한 제한 — 불일치 방지
 
       if (!error && data) {
         setDateCache((prev) => ({ ...prev, [date]: data }))
