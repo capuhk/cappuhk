@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-22 (메모 라벨 통일, 메모 검색 확장, 카푸치노 전용 WINGS 객실 대시보드)
-> **버전**: v4.6 (v4.5 + 메모 통일 + WINGS 객실 대시보드)
+> **최종 업데이트**: 2026-04-24 (인스펙션 레이지로딩, 객실현황 필터 유지, NG 뱃지, 스크래퍼 v2 개선)
+> **버전**: v4.7 (v4.6.2 + 인스펙션 아코디언 레이지로딩 + 객실현황 필터 유지 + NG 뱃지 + 스크래퍼 v2 안정화)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -2194,10 +2194,14 @@ $$ LANGUAGE SQL STABLE;
 | OD | 투숙/미청소 | 주황 |
 | OI | 투숙/점검완료 | 하늘 |
 
-#### 스크래퍼 반복 수집 방식 (v4.6.1 수정)
-- 첫 수동 새로고침 시 POST 요청 캡처 (`_captured_request` 저장)
-- 이후 5분마다 `page.request.post()`로 동일 요청 직접 재전송
-- 브라우저 세션 쿠키 자동 공유 → 버튼 클릭 없이 반복 가능
+#### 스크래퍼 반복 수집 방식 (v4.7 수정)
+- **scraper.py(원본)**: 수동 로그인 → Room Indicator 이동 → POST 캡처 → `captured_request.json` 파일 저장
+- **scraper_v2.py(자동화)**: 자동 로그인 → `/view/fd01_2400.do` 직접 이동 → `captured_request.json` 읽어 `page.request.post()` 재실행
+  - 파일 없으면 goto+response 이벤트 폴백
+  - 3회 연속 실패 시 자동 재로그인
+  - 운영 시간 외 대기 → 재진입 시 강제 재로그인
+- **엔드포인트**: `/biz/fd01_2400_V50/searchListRoomIndicator.do` (올바른 URL)
+- **수집 필드**: `CLEAN_STS_TEXT` 포함 (NG=청소중, OR=청소전)
 
 #### 구현 파일
 - `app/supabase/migration_v17.sql`
@@ -2226,3 +2230,4 @@ $$ LANGUAGE SQL STABLE;
 | v4.6 | 2026-04-17 | 알림 뱃지 버그 수정 + 텔레그램 푸시 수정 + WINGS 객실현황 대시보드(카푸치노 전용) — [1] closeDrawer 시 notif_last_read_at 갱신(드로어 닫으면 뱃지 초기화) [2] _refreshBadge notification_reads 반영(뱃지·목록 카운트 불일치 수정) [3] _fetchItems unreadCount 실제 항목 수로 동기화 [4] send-push 401 수정(Supabase ES256 JWT → Verify JWT OFF) [5] send-push fcm_tokens 서브쿼리 TypeError → 2단계 쿼리 수정 후 재배포 [6] migration_v17: rooms 테이블 + Realtime + RLS [7] RoomDashboard.jsx: 층/상태 필터·검색·Realtime 구독·상태별 색상 카드 그리드 [8] wings_scraper: Python+Playwright 포터블 스크래퍼(setup_portable.bat으로 외부망 준비 → start.bat으로 내부망 실행) |
 | v4.6.1 | 2026-04-22 | WINGS 스크래퍼 5분 반복 수집 수정 + UI 개선 + 메모 통일 — [1] wings_scraper: fetch_room_data 버튼클릭/F5 방식 제거 → page.request.post()로 캡처된 POST 직접 재실행(브라우저 세션 쿠키 자동 공유, 반복 수집 정상화) [2] RoomDashboard: 재실 여부 아이콘 추가(inroom_status=I 시 사람 아이콘 표시) [3] 인스펙션·시설오더 폼 '특이사항' 라벨 → '메모'로 통일 [4] 인스펙션·시설오더 리스트 검색에 메모(note) 내용 포함 |
 | v4.6.2 | 2026-04-22 | WINGS 스크래퍼 v2 완전 자동화 버전 신규 작성 — [1] scraper_v2.py: JS 값 주입+이벤트 강제 발생으로 자동 로그인 [2] Room Indicator 메뉴 JS 클릭으로 자동 이동(URL 직접 접근 불가 — ExtJS SPA 구조) [3] POST 자동 캡처(페이지 로드 시, 미발생 시 reload 유도) [4] 3회 연속 실패 시 자동 재로그인 [5] headless=False로 동작 확인 중 — 검증 완료 후 headless=True 전환 예정 [6] 기존 scraper.py(수동) 유지 병행 |
+| v4.7 | 2026-04-24 | 인스펙션 레이지로딩·스크래퍼 v2 안정화·객실현황 개선 — [1] InspectionListPage: 아코디언 레이지로딩(work_date만 초기 로드 → 날짜 클릭 시 목록 fetch + dateCache) [2] 검색모드: 300ms 디바운스 서버쿼리+클라이언트 이름 필터, 일자별 아코디언 유지 [3] useRoomFilterStore(Zustand): 페이지 이동 후 복귀 시 필터 유지(층·상태·BK·검색) [4] RoomDashboard NG 뱃지: CLEAN_STS_TEXT=NG 시 NG 뱃지 표시(청소중) [5] migration_v18: rooms.clean_sts_text 컬럼 추가 [6] scraper.py: POST 캡처 시 captured_request.json 파일 저장 [7] scraper_v2.py: captured_request.json 읽어 replay 우선, 파일 없으면 goto+response 폴백, Room Indicator 직접 URL 이동(/view/fd01_2400.do) |
