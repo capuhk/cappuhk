@@ -1,0 +1,6 @@
+.env
+captured_request.json
+__pycache__/
+*.pyc
+logs/
+browsers/
