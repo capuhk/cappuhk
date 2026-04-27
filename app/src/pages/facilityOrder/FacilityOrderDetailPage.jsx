@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Loader2, Trash2, ImageOff, X, ZoomIn } from 'lucide-react'
+import { Loader2, Trash2, ImageOff, X, ZoomIn, Send } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
@@ -9,7 +9,7 @@ import { sendPush } from '../../utils/sendPush'
 import { getMasterData, CACHE_KEYS } from '../../utils/masterCache'
 import BottomSheet from '../../components/common/BottomSheet'
 
-// 상태별 뱃지 색상 — '이관' 추가
+// 상태별 뱃지 색상
 const STATUS_COLOR = {
   접수대기: 'bg-zinc-500/30 text-zinc-300',
   처리중:   'bg-blue-500/20 text-blue-400',
@@ -39,6 +39,13 @@ export default function FacilityOrderDetailPage() {
   const [divisionSheetOpen, setDivisionSheetOpen] = useState(false)
   const [locationSheetOpen, setLocationSheetOpen] = useState(false)
 
+  // ── 리마크 상태 ───────────────────────────────
+  const [remarks, setRemarks]         = useState([])
+  const [remarkInput, setRemarkInput] = useState('')
+  const [sending, setSending]         = useState(false)
+  const [deletingRemark, setDeletingRemark] = useState(null)
+  const remarksEndRef = useRef(null)
+
   // ── 데이터 로드 ───────────────────────────────
   const fetchData = async () => {
     try {
@@ -48,7 +55,8 @@ export default function FacilityOrderDetailPage() {
           *,
           facility_order_images(id, thumb_path, sort_order),
           author:users!author_id(name),
-          updater:users!updated_by(name)
+          updater:users!updated_by(name),
+          acceptor:users!accepted_by(name)
         `)
         .eq('id', id)
         .single()
@@ -83,9 +91,48 @@ export default function FacilityOrderDetailPage() {
     }
   }
 
+  // ── 리마크 로드 ───────────────────────────────
+  const fetchRemarks = async () => {
+    const { data, error } = await supabase
+      .from('facility_order_remarks')
+      .select('id, content, created_at, author:users!author_id(id, name)')
+      .eq('facility_order_id', id)
+      .order('created_at', { ascending: true })
+
+    if (!error && data) setRemarks(data)
+  }
+
   useEffect(() => {
     fetchData()
+    fetchRemarks()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 리마크 Realtime 구독 ──────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel(`remarks-${id}`)
+      .on('postgres_changes', {
+        event:  '*',
+        schema: 'public',
+        table:  'facility_order_remarks',
+        filter: `facility_order_id=eq.${id}`,
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          // 작성자 name을 가져오기 위해 전체 재조회
+          fetchRemarks()
+        } else if (payload.eventType === 'DELETE') {
+          setRemarks((prev) => prev.filter((r) => r.id !== payload.old.id))
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 새 리마크 추가 시 스크롤 하단 이동 ────────
+  useEffect(() => {
+    remarksEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [remarks])
 
   // ── 관리자인 경우 이관용 마스터 데이터 로드 ───
   const isManager  = ['admin', 'manager', 'supervisor'].includes(user?.role)
@@ -106,6 +153,9 @@ export default function FacilityOrderDetailPage() {
   const canChangeStatus = isManager || isFacility
   const canDelete       = isManager
 
+  // 완료 권한: 관리자·소장·주임은 누구나, 그 외는 접수자 본인만
+  const canComplete = isManager || !record?.accepted_by || user?.id === record?.accepted_by
+
   // 선택된 구분에 해당하는 위치 목록 필터링
   const divisionObj       = divisions.find((d) => d.name === selDivision)
   const filteredLocations = divisionObj
@@ -117,7 +167,7 @@ export default function FacilityOrderDetailPage() {
     setAccepting(true)
     const { error } = await supabase
       .from('facility_orders')
-      .update({ status: '처리중', updated_by: user.id })
+      .update({ status: '처리중', updated_by: user.id, accepted_by: user.id })
       .eq('id', id)
 
     if (error) {
@@ -153,8 +203,7 @@ export default function FacilityOrderDetailPage() {
         new_status:        '완료',
       })
 
-      // 완료 처리 푸시 — 오더종류별 수신 역할 분기
-      // 객실·시설: 관리자+담당자+프론트 / 공용부: 관리자만
+      // 완료 처리 푸시
       const COMPLETE_PUSH_ROLES = {
         '객실':  ['admin', 'manager', 'supervisor', 'houseman', 'front'],
         '시설':  ['admin', 'manager', 'supervisor', 'facility', 'front'],
@@ -178,7 +227,6 @@ export default function FacilityOrderDetailPage() {
   }
 
   // ── 이미지 복사 (시설오더 버킷 → 하자 버킷) ──
-  // RPC 성공 후 호출 — 실패해도 데이터 정합성은 RPC가 보장
   const migrateImages = async (images) => {
     const newPaths = []
     for (const img of images) {
@@ -190,7 +238,6 @@ export default function FacilityOrderDetailPage() {
 
       if (dlErr || !blob) continue
 
-      // 파일명만 추출 — thumb_path에 폴더 경로가 포함된 경우 '/' 문제 방지
       const fileName = img.thumb_path.split('/').pop()
       const newPath  = `migrated/${Date.now()}_${fileName}`
 
@@ -204,12 +251,9 @@ export default function FacilityOrderDetailPage() {
   }
 
   // ── 이관 실행 ─────────────────────────────────
-  // 순서: RPC(트랜잭션) 먼저 → 이미지 복사
-  // RPC 성공 후 이미지 복사 실패 시 데이터는 안전, 이미지만 누락
   const executeMove = async (division, location) => {
     setMoving(true)
     try {
-      // 1. RPC로 defect 등록 + facility_order 상태 변경 원자적 처리
       const { data: newDefectId, error: rpcErr } = await supabase.rpc('move_facility_to_defect_v1', {
         p_fo_id:    id,
         p_room_no:  record.room_no,
@@ -221,7 +265,6 @@ export default function FacilityOrderDetailPage() {
 
       if (rpcErr) throw rpcErr
 
-      // 2. RPC 성공 후 이미지 복사 (60일 자동삭제 버킷 → 영구보관 버킷)
       const images = record.facility_order_images || []
       if (images.length > 0) {
         const newPaths = await migrateImages(images)
@@ -232,13 +275,12 @@ export default function FacilityOrderDetailPage() {
         }
       }
 
-      // 3. 관리자·소장·주임에게 이관 알림 푸시
       sendPush({
         roles:     ['admin', 'manager', 'supervisor'],
         title:     `[🚨시설이관] ${record.room_no}호`,
         body:      `${division} — ${location}${record.note ? ` (${record.note})` : ''}`,
         url:       `/defect/${newDefectId}`,
-        orderType: '시설',  // 관리자 알람 OFF 필터링 적용
+        orderType: '시설',
       })
 
       navigate(`/defect/${newDefectId}`, { replace: true })
@@ -255,7 +297,6 @@ export default function FacilityOrderDetailPage() {
     setSelDivision(name)
     setSelLocation('')
     setDivisionSheetOpen(false)
-    // 구분 선택 후 위치 Sheet 자동 오픈
     setTimeout(() => setLocationSheetOpen(true), 300)
   }
 
@@ -263,7 +304,6 @@ export default function FacilityOrderDetailPage() {
   const handleLocationSelect = (locName) => {
     setSelLocation(locName)
     setLocationSheetOpen(false)
-    // Sheet 닫힘 애니메이션 후 최종 확인
     setTimeout(() => {
       if (window.confirm(`${selDivision} — ${locName}\n위 위치로 객실하자 이관하시겠습니까?`)) {
         executeMove(selDivision, locName)
@@ -299,6 +339,37 @@ export default function FacilityOrderDetailPage() {
     navigate('/facility-order', { replace: true })
   }
 
+  // ── 리마크 전송 ───────────────────────────────
+  const handleSendRemark = async () => {
+    const content = remarkInput.trim()
+    if (!content || sending) return
+
+    setSending(true)
+    const { error } = await supabase
+      .from('facility_order_remarks')
+      .insert({ facility_order_id: id, author_id: user.id, content })
+
+    if (!error) {
+      setRemarkInput('')
+    }
+    setSending(false)
+  }
+
+  // ── 리마크 삭제 ───────────────────────────────
+  const handleDeleteRemark = async (remarkId) => {
+    setDeletingRemark(remarkId)
+    await supabase.from('facility_order_remarks').delete().eq('id', remarkId)
+    setDeletingRemark(null)
+  }
+
+  // ── 입력창 엔터키 전송 (Shift+Enter는 줄바꿈) ──
+  const handleRemarkKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendRemark()
+    }
+  }
+
   // ── 로딩 ─────────────────────────────────────
   if (loading) {
     return (
@@ -310,13 +381,14 @@ export default function FacilityOrderDetailPage() {
 
   if (!record) return null
 
-  const authorName  = record.author?.name  || '-'
-  const updaterName = record.updater?.name || null
+  const authorName   = record.author?.name   || '-'
+  const updaterName  = record.updater?.name  || null
+  const acceptorName = record.acceptor?.name || null
 
   // ── 렌더 ─────────────────────────────────────
   return (
     <div>
-      {/* 이미지 슬라이드 — 클릭 시 전체화면 */}
+      {/* 이미지 슬라이드 */}
       {imgUrls.length > 0 && (
         <div
           className="flex gap-2 overflow-x-auto px-4 pt-4"
@@ -402,7 +474,6 @@ export default function FacilityOrderDetailPage() {
       <div className="px-4 pt-6 pb-6 space-y-4">
         {/* 객실번호 + 상태 + 긴급 뱃지 */}
         <div className="flex items-center gap-3">
-          {/* room_no 없으면(공용부·시설) location_type 표시 */}
           <span className="text-2xl font-bold text-white">
             {record.room_no || record.location_type || ''}
           </span>
@@ -420,7 +491,7 @@ export default function FacilityOrderDetailPage() {
         {/* 특이사항 */}
         {record.note && (
           <div className="px-4 py-4 bg-white/5 rounded-2xl">
-            <p className="text-xs text-white/40 mb-1.5">특이사항</p>
+            <p className="text-xs text-white/40 mb-1.5">메모</p>
             <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{record.note}</p>
           </div>
         )}
@@ -441,23 +512,32 @@ export default function FacilityOrderDetailPage() {
                 {accepting ? '처리 중...' : '접수'}
               </button>
             )}
-            {/* 처리중 → 완료 */}
+            {/* 처리중 → 완료 (권한 있는 경우만) */}
             {record.status === '처리중' && (
-              <button
-                onClick={handleComplete}
-                disabled={completing}
-                className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-semibold
-                  hover:bg-emerald-500 active:scale-[0.98] transition-all
-                  flex items-center justify-center gap-2 disabled:opacity-40"
-              >
-                {completing && <Loader2 size={16} className="animate-spin" />}
-                {completing ? '처리 중...' : '완료'}
-              </button>
+              canComplete ? (
+                <button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-semibold
+                    hover:bg-emerald-500 active:scale-[0.98] transition-all
+                    flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {completing && <Loader2 size={16} className="animate-spin" />}
+                  {completing ? '처리 중...' : '완료'}
+                </button>
+              ) : (
+                // 완료 권한 없음 — 접수자 안내
+                <div className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-center">
+                  <p className="text-xs text-white/40">
+                    완료는 접수자({acceptorName})만 처리할 수 있습니다
+                  </p>
+                </div>
+              )
             )}
           </div>
         )}
 
-        {/* 이관 버튼 — 관리자·소장·주임만, 완료·이관 상태 제외 */}
+        {/* 이관 버튼 */}
         {isManager && record.status !== '완료' && record.status !== '이관' && (
           <button
             onClick={() => {
@@ -482,6 +562,12 @@ export default function FacilityOrderDetailPage() {
             <span className="text-xs text-white/40 w-20 shrink-0">담당자</span>
             <span className="text-sm text-white/70">{authorName}</span>
           </div>
+          {acceptorName && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl">
+              <span className="text-xs text-white/40 w-20 shrink-0">접수자</span>
+              <span className="text-sm text-blue-400">{acceptorName}</span>
+            </div>
+          )}
           <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl">
             <span className="text-xs text-white/40 w-20 shrink-0">작성일</span>
             <span className="text-sm text-white/70">
@@ -510,7 +596,98 @@ export default function FacilityOrderDetailPage() {
           )}
         </div>
 
-        {/* 삭제 버튼 — 관리자·소장·주임만 */}
+        {/* ── 리마크 섹션 ─────────────────────────── */}
+        <div className="pt-2">
+          <p className="text-xs text-white/40 mb-3 px-1">리마크</p>
+
+          {/* 리마크 목록 */}
+          <div className="space-y-2 mb-3">
+            {remarks.length === 0 ? (
+              <p className="text-xs text-white/20 text-center py-4">리마크가 없습니다</p>
+            ) : (
+              remarks.map((remark) => {
+                const isMyRemark = remark.author?.id === user?.id
+                const canDeleteRemark = isMyRemark || isManager
+
+                return (
+                  <div
+                    key={remark.id}
+                    className={`flex flex-col gap-0.5 ${isMyRemark ? 'items-end' : 'items-start'}`}
+                  >
+                    {/* 작성자명 + 시각 */}
+                    <div className={`flex items-center gap-1.5 px-1 ${isMyRemark ? 'flex-row-reverse' : ''}`}>
+                      <span className="text-xs text-white/40 font-medium">{remark.author?.name}</span>
+                      <span className="text-xs text-white/25">{dayjs(remark.created_at).format('MM/DD HH:mm')}</span>
+                    </div>
+
+                    {/* 말풍선 */}
+                    <div className={`flex items-end gap-1.5 ${isMyRemark ? 'flex-row-reverse' : ''}`}>
+                      <div
+                        className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                          isMyRemark
+                            ? 'bg-amber-400/90 text-slate-900 rounded-tr-sm'
+                            : 'bg-slate-800 text-white/80 rounded-tl-sm'
+                        }`}
+                      >
+                        {remark.content}
+                      </div>
+
+                      {/* 삭제 버튼 */}
+                      {canDeleteRemark && (
+                        <button
+                          onClick={() => handleDeleteRemark(remark.id)}
+                          disabled={deletingRemark === remark.id}
+                          className="shrink-0 w-5 h-5 flex items-center justify-center
+                            text-white/20 hover:text-red-400 transition-colors"
+                        >
+                          {deletingRemark === remark.id
+                            ? <Loader2 size={11} className="animate-spin" />
+                            : <X size={11} />
+                          }
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+            <div ref={remarksEndRef} />
+          </div>
+
+          {/* 리마크 입력창 */}
+          <div className="flex gap-2 items-end">
+            <textarea
+              value={remarkInput}
+              onChange={(e) => setRemarkInput(e.target.value)}
+              onKeyDown={handleRemarkKeyDown}
+              placeholder="리마크 입력 (Enter 전송, Shift+Enter 줄바꿈)"
+              rows={1}
+              className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5
+                text-sm text-white placeholder:text-white/25 outline-none resize-none
+                focus:border-amber-400/40 transition-colors leading-relaxed"
+              style={{ minHeight: '42px', maxHeight: '120px' }}
+              onInput={(e) => {
+                // 내용에 따라 높이 자동 조절
+                e.target.style.height = 'auto'
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+              }}
+            />
+            <button
+              onClick={handleSendRemark}
+              disabled={!remarkInput.trim() || sending}
+              className="shrink-0 w-10 h-10 rounded-xl bg-amber-400 text-slate-900
+                flex items-center justify-center
+                disabled:opacity-30 active:scale-95 transition-all"
+            >
+              {sending
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Send size={16} />
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* 삭제 버튼 */}
         {canDelete && (
           <button
             onClick={handleDelete}

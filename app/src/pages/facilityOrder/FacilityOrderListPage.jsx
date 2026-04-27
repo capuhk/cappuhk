@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer, MessageSquare } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
+import useAuthStore from '../../store/useAuthStore'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { getMasterData, getCachedDataSync, CACHE_KEYS } from '../../utils/masterCache'
 import { downloadExcel, openPrintWindow, prepareFacilityExport } from '../../utils/exportUtils'
@@ -28,7 +29,9 @@ const FILTER_OPTIONS = [
 
 export default function FacilityOrderListPage() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
   const { refreshKey, triggerRefresh } = useRefreshStore()
+  const isManager = ['admin', 'manager', 'supervisor'].includes(user?.role)
   const { pullDistance, refreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
 
   // ── 날짜 범위 — 기본값: 최근 30일 ──────────────
@@ -57,7 +60,9 @@ export default function FacilityOrderListPage() {
       try {
         const { data, error } = await supabase
           .from('facility_orders')
-          .select('id, room_no, location_type, facility_type_name, note, status, is_urgent, work_date, created_at, users!author_id(name)')
+          .select(`id, room_no, location_type, facility_type_name, note, status, is_urgent, work_date, created_at, accepted_by,
+            users!author_id(name),
+            facility_order_remarks(id, content, created_at, author:users!author_id(name))`)
           .gte('work_date', dateFrom)
           .lte('work_date', dateTo)
           .order('work_date', { ascending: false })
@@ -158,13 +163,18 @@ export default function FacilityOrderListPage() {
     if (processingId) return
     setProcessingId(`${record.id}-${newStatus}`)
     try {
+      // 접수 시 accepted_by 저장
+      const updatePayload = newStatus === '처리중'
+        ? { status: newStatus, accepted_by: user?.id }
+        : { status: newStatus }
+
       const { error } = await supabase
         .from('facility_orders')
-        .update({ status: newStatus })
+        .update(updatePayload)
         .eq('id', record.id)
       if (!error) {
         setRecords((prev) => prev.map((r) =>
-          r.id === record.id ? { ...r, status: newStatus } : r
+          r.id === record.id ? { ...r, status: newStatus, accepted_by: newStatus === '처리중' ? user?.id : r.accepted_by } : r
         ))
       }
     } catch (err) {
@@ -341,6 +351,11 @@ export default function FacilityOrderListPage() {
                     {grouped[date].map((record) => {
                       const isProcessing = processingId?.startsWith(record.id)
                       const showButtons  = record.status !== '완료' && record.status !== '이관'
+                      // 완료 권한: 관리자·소장·주임은 누구나, 그 외는 접수자 본인만
+                      const canComplete  = isManager || !record.accepted_by || user?.id === record.accepted_by
+                      // 최신 리마크 (created_at 내림차순 첫 번째)
+                      const latestRemark = (record.facility_order_remarks || [])
+                        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
                       return (
                         <div
                           key={record.id}
@@ -371,6 +386,15 @@ export default function FacilityOrderListPage() {
                             {record.note && (
                               <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
                             )}
+                            {/* 최신 리마크 미리보기 */}
+                            {latestRemark && (
+                              <div className="mt-1.5 flex items-center gap-1">
+                                <MessageSquare size={11} className="text-amber-400/60 shrink-0" />
+                                <p className="text-xs text-amber-400/70 truncate">
+                                  {latestRemark.author?.name}: {latestRemark.content}
+                                </p>
+                              </div>
+                            )}
                             <p className="mt-1 text-xs text-white/30">{record.users?.name}</p>
                           </button>
 
@@ -392,19 +416,22 @@ export default function FacilityOrderListPage() {
                                   접수
                                 </button>
                               )}
-                              <button
-                                onClick={(e) => handleQuickStatus(e, record, '완료')}
-                                disabled={isProcessing}
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
-                                  bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
-                                  transition-all active:scale-95 disabled:opacity-40"
-                              >
-                                {processingId === `${record.id}-완료`
-                                  ? <Loader2 size={11} className="animate-spin" />
-                                  : <CheckCircle size={11} />
-                                }
-                                완료
-                              </button>
+                              {/* 완료 버튼 — 권한 있는 경우만 표시 */}
+                              {canComplete && (
+                                <button
+                                  onClick={(e) => handleQuickStatus(e, record, '완료')}
+                                  disabled={isProcessing}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                                    bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
+                                    transition-all active:scale-95 disabled:opacity-40"
+                                >
+                                  {processingId === `${record.id}-완료`
+                                    ? <Loader2 size={11} className="animate-spin" />
+                                    : <CheckCircle size={11} />
+                                  }
+                                  완료
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
