@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer, MessageSquare } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer, MessageSquare, Send } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
@@ -157,6 +157,10 @@ export default function FacilityOrderListPage() {
 
   // ── 빠른 상태 변경 ───────────────────────────
   const [processingId, setProcessingId] = useState(null)
+  // 인라인 리마크 입력창이 열린 오더 ID
+  const [remarkOpenId, setRemarkOpenId]   = useState(null)
+  const [remarkInputs, setRemarkInputs]   = useState({}) // { [orderId]: string }
+  const [sendingRemark, setSendingRemark] = useState(null)
 
   const handleQuickStatus = async (e, record, newStatus) => {
     e.stopPropagation()
@@ -182,6 +186,28 @@ export default function FacilityOrderListPage() {
     } finally {
       setProcessingId(null)
     }
+  }
+
+  // ── 인라인 리마크 전송 ────────────────────────
+  const handleSendInlineRemark = async (e, orderId) => {
+    e.stopPropagation()
+    const content = (remarkInputs[orderId] || '').trim()
+    if (!content || sendingRemark) return
+    setSendingRemark(orderId)
+    const { error } = await supabase
+      .from('facility_order_remarks')
+      .insert({ facility_order_id: orderId, author_id: user?.id, content })
+    if (!error) {
+      // 목록 캐시에 리마크 반영
+      setRecords((prev) => prev.map((r) => {
+        if (r.id !== orderId) return r
+        const newRemark = { id: Date.now(), content, created_at: new Date().toISOString(), author: { name: user?.name || '' } }
+        return { ...r, facility_order_remarks: [...(r.facility_order_remarks || []), newRemark] }
+      }))
+      setRemarkInputs((prev) => ({ ...prev, [orderId]: '' }))
+      setRemarkOpenId(null)
+    }
+    setSendingRemark(null)
   }
 
   // ── 아코디언 토글 ─────────────────────────────
@@ -356,20 +382,20 @@ export default function FacilityOrderListPage() {
                       // 최신 리마크 (created_at 내림차순 첫 번째)
                       const latestRemark = (record.facility_order_remarks || [])
                         .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+                      const isRemarkOpen = remarkOpenId === record.id
                       return (
                         <div
                           key={record.id}
-                          className={`w-full flex items-center gap-2 px-3 py-3.5 rounded-2xl
-                            border mt-2 transition-all ${
-                              record.is_urgent
-                                ? 'bg-rose-500/5 border-rose-500/20 shadow-sm'
-                                : 'bg-slate-950 border-white/5 hover:bg-slate-800 shadow-sm'
-                            }`}
+                          className={`rounded-2xl border mt-2 overflow-hidden transition-all ${
+                            record.is_urgent
+                              ? 'bg-rose-500/5 border-rose-500/20 shadow-sm'
+                              : 'bg-slate-950 border-white/5 shadow-sm'
+                          }`}
                         >
                           {/* 카드 본문 — 클릭 시 상세 이동 */}
                           <button
                             onClick={() => navigate(`/facility-order/${record.id}`)}
-                            className="flex-1 text-left min-w-0 active:scale-[0.99]"
+                            className="w-full text-left px-3 pt-3.5 pb-2 active:scale-[0.99]"
                           >
                             <div className="flex items-center gap-2">
                               {record.is_urgent && (
@@ -398,40 +424,95 @@ export default function FacilityOrderListPage() {
                             <p className="mt-1 text-xs text-white/30">{record.users?.name}</p>
                           </button>
 
-                          {/* 빠른 상태 변경 버튼 */}
-                          {showButtons && (
-                            <div className="shrink-0 flex flex-col gap-1">
-                              {record.status === '접수대기' && (
+                          {/* 하단 버튼 행 — 균등 배치 */}
+                          <div className="flex border-t border-white/5">
+                            {/* 리마크 버튼 — 항상 표시 */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setRemarkOpenId(isRemarkOpen ? null : record.id)
+                              }}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors
+                                ${isRemarkOpen
+                                  ? 'text-amber-400 bg-amber-400/10'
+                                  : 'text-white/40 hover:text-white/70 hover:bg-white/5'
+                                }`}
+                            >
+                              <MessageSquare size={12} />
+                              리마크
+                            </button>
+
+                            {/* 상태 변경 버튼 — 완료·이관 제외 */}
+                            {showButtons && (
+                              <>
+                                {/* 구분선 */}
+                                <div className="w-px bg-white/5" />
+
+                                {/* 접수 버튼 */}
+                                {record.status === '접수대기' && (
+                                  <button
+                                    onClick={(e) => handleQuickStatus(e, record, '처리중')}
+                                    disabled={isProcessing}
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium
+                                      text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
+                                  >
+                                    {processingId === `${record.id}-처리중`
+                                      ? <Loader2 size={12} className="animate-spin" />
+                                      : <CheckCircle size={12} />
+                                    }
+                                    접수
+                                  </button>
+                                )}
+
+                                {/* 구분선 */}
+                                <div className="w-px bg-white/5" />
+
+                                {/* 완료 버튼 — 권한 있는 경우만 활성 */}
                                 <button
-                                  onClick={(e) => handleQuickStatus(e, record, '처리중')}
-                                  disabled={isProcessing}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
-                                    bg-blue-500/20 text-blue-400 hover:bg-blue-500/35
-                                    transition-all active:scale-95 disabled:opacity-40"
-                                >
-                                  {processingId === `${record.id}-처리중`
-                                    ? <Loader2 size={11} className="animate-spin" />
-                                    : <CheckCircle size={11} />
-                                  }
-                                  접수
-                                </button>
-                              )}
-                              {/* 완료 버튼 — 권한 있는 경우만 표시 */}
-                              {canComplete && (
-                                <button
-                                  onClick={(e) => handleQuickStatus(e, record, '완료')}
-                                  disabled={isProcessing}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
-                                    bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
-                                    transition-all active:scale-95 disabled:opacity-40"
+                                  onClick={(e) => canComplete ? handleQuickStatus(e, record, '완료') : e.stopPropagation()}
+                                  disabled={isProcessing || !canComplete}
+                                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium
+                                    transition-colors disabled:opacity-25
+                                    enabled:text-emerald-400 enabled:hover:bg-emerald-500/10"
                                 >
                                   {processingId === `${record.id}-완료`
-                                    ? <Loader2 size={11} className="animate-spin" />
-                                    : <CheckCircle size={11} />
+                                    ? <Loader2 size={12} className="animate-spin" />
+                                    : <CheckCircle size={12} />
                                   }
                                   완료
                                 </button>
-                              )}
+                              </>
+                            )}
+                          </div>
+
+                          {/* 인라인 리마크 입력창 — 열렸을 때만 표시 */}
+                          {isRemarkOpen && (
+                            <div className="px-3 pb-3 pt-2 border-t border-white/5 flex gap-2 items-center">
+                              <input
+                                type="text"
+                                value={remarkInputs[record.id] || ''}
+                                onChange={(e) => setRemarkInputs((prev) => ({ ...prev, [record.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSendInlineRemark(e, record.id)
+                                  if (e.key === 'Escape') setRemarkOpenId(null)
+                                }}
+                                placeholder="리마크 입력 후 Enter"
+                                autoFocus
+                                className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2
+                                  text-sm text-white placeholder:text-white/25 outline-none
+                                  focus:border-amber-400/40 transition-colors"
+                              />
+                              <button
+                                onClick={(e) => handleSendInlineRemark(e, record.id)}
+                                disabled={!(remarkInputs[record.id] || '').trim() || sendingRemark === record.id}
+                                className="shrink-0 w-9 h-9 rounded-xl bg-amber-400 text-slate-900
+                                  flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+                              >
+                                {sendingRemark === record.id
+                                  ? <Loader2 size={14} className="animate-spin" />
+                                  : <Send size={14} />
+                                }
+                              </button>
                             </div>
                           )}
                         </div>
