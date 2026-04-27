@@ -498,8 +498,9 @@ export default function FacilityOrderListPage() {
                                 }}
                                 placeholder="리마크 입력 후 Enter"
                                 autoFocus
+                                style={{ fontSize: '16px' }}
                                 className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2
-                                  text-sm text-white placeholder:text-white/25 outline-none
+                                  text-white placeholder:text-white/25 outline-none
                                   focus:border-amber-400/40 transition-colors"
                               />
                               <button
