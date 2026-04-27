@@ -496,7 +496,11 @@ export default function FacilityOrderListPage() {
                                   if (e.key === 'Enter') handleSendInlineRemark(e, record.id)
                                   if (e.key === 'Escape') setRemarkOpenId(null)
                                 }}
-                                placeholder="리마크 입력 후 Enter"
+                                onFocus={(e) => {
+                                  // iOS 키보드 올라올 때 입력창이 가려지지 않도록 스크롤
+                                  setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350)
+                                }}
+                                placeholder="리마크 입력"
                                 autoFocus
                                 style={{ fontSize: '16px' }}
                                 className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2
