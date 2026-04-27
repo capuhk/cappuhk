@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-26 (인스펙션 날짜별 건수 RPC 집계, 소프트 삭제, 로그인 키보드 입력, FAB 동적 권한)
-> **버전**: v4.8 (v4.7 + 인스펙션 아코디언 건수 정확화 + 직원 소프트삭제 + 로그인 키보드 + FAB 동적권한)
+> **최종 업데이트**: 2026-04-28 (오더 리마크 채팅 UI + 접수자 표시 + 완료 권한 제한)
+> **버전**: v4.9 (v4.8 + 오더 리마크 + 접수자 완료권한)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -2232,3 +2232,4 @@ $$ LANGUAGE SQL STABLE;
 | v4.6.2 | 2026-04-22 | WINGS 스크래퍼 v2 완전 자동화 버전 신규 작성 — [1] scraper_v2.py: JS 값 주입+이벤트 강제 발생으로 자동 로그인 [2] Room Indicator 메뉴 JS 클릭으로 자동 이동(URL 직접 접근 불가 — ExtJS SPA 구조) [3] POST 자동 캡처(페이지 로드 시, 미발생 시 reload 유도) [4] 3회 연속 실패 시 자동 재로그인 [5] headless=False로 동작 확인 중 — 검증 완료 후 headless=True 전환 예정 [6] 기존 scraper.py(수동) 유지 병행 |
 | v4.7 | 2026-04-24 | 인스펙션 레이지로딩·스크래퍼 v2 안정화·객실현황 개선 — [1] InspectionListPage: 아코디언 레이지로딩(work_date만 초기 로드 → 날짜 클릭 시 목록 fetch + dateCache) [2] 검색모드: 300ms 디바운스 서버쿼리+클라이언트 이름 필터, 일자별 아코디언 유지 [3] useRoomFilterStore(Zustand): 페이지 이동 후 복귀 시 필터 유지(층·상태·BK·검색) [4] RoomDashboard NG 뱃지: CLEAN_STS_TEXT=NG 시 NG 뱃지 표시(청소중) [5] migration_v18: rooms.clean_sts_text 컬럼 추가 [6] scraper.py: POST 캡처 시 captured_request.json 파일 저장 [7] scraper_v2.py: captured_request.json 읽어 replay 우선, 파일 없으면 goto+response 폴백, Room Indicator 직접 URL 이동(/view/fd01_2400.do) |
 | v4.8 | 2026-04-26 | 인스펙션 건수 정확화·직원 소프트삭제·로그인 키보드·FAB 동적권한 — [1] migration_v20: get_inspection_date_counts RPC 함수(GROUP BY 서버 집계, Supabase max-rows 제한 근본 해결) [2] InspectionListPage Phase 1 RPC 호출로 교체(날짜별 배지 카운트 정확화) [3] migration_v19: users.is_deleted 컬럼 추가(소프트 삭제) [4] UserFormPage·StaffDetailPage: 삭제 버튼 추가(is_deleted=true+is_active=false) [5] StaffListPage: .neq('is_deleted', true)로 NULL 허용(기존 직원 목록 복구) [6] LoginPage: 키보드 입력 지원(숫자·Backspace·Enter, ref 패턴으로 stale closure 방지) [7] useAuthStore: noticeWriteRoles 동적 로드(login·init 시 app_policies 조회) [8] FAB: notice_write_roles 정책 반영(동적 쓰기 권한) [9] MainLayout: useEffect deps [user?.id, user?.role]로 수정 [10] wings_scraper/.gitignore 추가(.env·captured_request.json 커밋 방지) [11] 스크래퍼 운영시간 6~23시로 변경 |
+| v4.9 | 2026-04-28 | 오더 리마크 채팅 UI + 접수자 표시 + 완료 권한 제한 — [1] migration_v21: facility_orders.accepted_by 컬럼 + facility_order_remarks 테이블(Realtime+RLS) [2] 상세 페이지: 채팅형 리마크 섹션(본인 오른쪽·타인 왼쪽 말풍선, Realtime 구독, 삭제 가능) [3] 상세 페이지: 접수자 표시(파란색), 완료 버튼 권한 체크(관리자·소장·주임은 누구나, 그 외 접수자 본인만) [4] 목록 카드: 최신 리마크 2줄 미리보기(💬 아이콘) [5] 목록 카드: 하단 버튼행 균등배치(리마크·접수·완료) [6] 목록: 리마크 버튼 클릭 시 fixed 하단 입력바 표시(visualViewport 키보드 높이 감지, iOS 대응) [7] Enter=줄바꿈, 전송은 버튼으로(모바일 UX 개선) |
