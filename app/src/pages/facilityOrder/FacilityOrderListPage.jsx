@@ -414,9 +414,9 @@ export default function FacilityOrderListPage() {
                             )}
                             {/* 최신 리마크 미리보기 */}
                             {latestRemark && (
-                              <div className="mt-1.5 flex items-center gap-1">
-                                <MessageSquare size={11} className="text-amber-400/60 shrink-0" />
-                                <p className="text-xs text-amber-400/70 truncate">
+                              <div className="mt-1.5 flex items-start gap-1">
+                                <MessageSquare size={11} className="text-amber-400/60 shrink-0 mt-0.5" />
+                                <p className="text-xs text-amber-400/70 line-clamp-2">
                                   {latestRemark.author?.name}: {latestRemark.content}
                                 </p>
                               </div>
