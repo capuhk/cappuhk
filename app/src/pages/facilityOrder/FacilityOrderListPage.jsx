@@ -534,20 +534,23 @@ export default function FacilityOrderListPage() {
             className="fixed left-0 right-0 z-50 px-3 py-2 bg-slate-900 border-t border-white/10 flex gap-2 items-center"
             style={{ bottom: kbHeight }}
           >
-            <input
+            <textarea
               ref={remarkInputRef}
-              type="text"
               value={remarkInputs[remarkOpenId] || ''}
               onChange={(e) => setRemarkInputs((prev) => ({ ...prev, [remarkOpenId]: e.target.value }))}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSendInlineRemark(e, remarkOpenId)
                 if (e.key === 'Escape') setRemarkOpenId(null)
               }}
-              placeholder="리마크 입력"
-              style={{ fontSize: '16px' }}
+              placeholder="리마크 입력 (버튼으로 전송)"
+              rows={1}
+              style={{ fontSize: '16px', maxHeight: '96px' }}
               className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5
-                text-white placeholder:text-white/25 outline-none
+                text-white placeholder:text-white/25 outline-none resize-none
                 focus:border-amber-400/40 transition-colors"
+              onInput={(e) => {
+                e.target.style.height = 'auto'
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`
+              }}
             />
             <button
               onClick={(e) => handleSendInlineRemark(e, remarkOpenId)}

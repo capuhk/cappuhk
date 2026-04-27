@@ -362,12 +362,9 @@ export default function FacilityOrderDetailPage() {
     setDeletingRemark(null)
   }
 
-  // ── 입력창 엔터키 전송 (Shift+Enter는 줄바꿈) ──
+  // ── 입력창 엔터키: 줄바꿈 (전송은 버튼으로) ──
   const handleRemarkKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendRemark()
-    }
+    // 모바일에서 Shift+Enter 어려우므로 Enter는 줄바꿈, 전송은 버튼만
   }
 
   // ── 로딩 ─────────────────────────────────────
@@ -660,7 +657,7 @@ export default function FacilityOrderDetailPage() {
               value={remarkInput}
               onChange={(e) => setRemarkInput(e.target.value)}
               onKeyDown={handleRemarkKeyDown}
-              placeholder="리마크 입력 (Enter 전송, Shift+Enter 줄바꿈)"
+              placeholder="리마크 입력 (버튼으로 전송)"
               rows={1}
               className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5
                 text-sm text-white placeholder:text-white/25 outline-none resize-none
