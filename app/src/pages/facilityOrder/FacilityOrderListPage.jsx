@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer, MessageSquare, Send } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -157,10 +157,12 @@ export default function FacilityOrderListPage() {
 
   // ── 빠른 상태 변경 ───────────────────────────
   const [processingId, setProcessingId] = useState(null)
-  // 인라인 리마크 입력창이 열린 오더 ID
+  // 리마크 입력창이 열린 오더 ID (fixed 하단바)
   const [remarkOpenId, setRemarkOpenId]   = useState(null)
   const [remarkInputs, setRemarkInputs]   = useState({}) // { [orderId]: string }
   const [sendingRemark, setSendingRemark] = useState(null)
+  const [kbHeight, setKbHeight]           = useState(0)   // iOS 키보드 높이
+  const remarkInputRef                    = useRef(null)
 
   const handleQuickStatus = async (e, record, newStatus) => {
     e.stopPropagation()
@@ -187,6 +189,31 @@ export default function FacilityOrderListPage() {
       setProcessingId(null)
     }
   }
+
+  // ── iOS 키보드 높이 감지 (visualViewport) ─────
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => {
+      const diff = window.innerHeight - vv.height - vv.offsetTop
+      setKbHeight(diff > 50 ? diff : 0)
+    }
+    vv.addEventListener('resize', onResize)
+    vv.addEventListener('scroll', onResize)
+    return () => {
+      vv.removeEventListener('resize', onResize)
+      vv.removeEventListener('scroll', onResize)
+    }
+  }, [])
+
+  // 리마크 입력창 열릴 때 자동 포커스
+  useEffect(() => {
+    if (remarkOpenId) {
+      setTimeout(() => remarkInputRef.current?.focus(), 100)
+    } else {
+      setKbHeight(0)
+    }
+  }, [remarkOpenId])
 
   // ── 인라인 리마크 전송 ────────────────────────
   const handleSendInlineRemark = async (e, orderId) => {
@@ -485,41 +512,6 @@ export default function FacilityOrderListPage() {
                             )}
                           </div>
 
-                          {/* 인라인 리마크 입력창 — 열렸을 때만 표시 */}
-                          {isRemarkOpen && (
-                            <div className="px-3 pb-3 pt-2 border-t border-white/5 flex gap-2 items-center">
-                              <input
-                                type="text"
-                                value={remarkInputs[record.id] || ''}
-                                onChange={(e) => setRemarkInputs((prev) => ({ ...prev, [record.id]: e.target.value }))}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSendInlineRemark(e, record.id)
-                                  if (e.key === 'Escape') setRemarkOpenId(null)
-                                }}
-                                onFocus={(e) => {
-                                  // iOS 키보드 올라올 때 입력창이 가려지지 않도록 스크롤
-                                  setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 350)
-                                }}
-                                placeholder="리마크 입력"
-                                autoFocus
-                                style={{ fontSize: '16px' }}
-                                className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3 py-2
-                                  text-white placeholder:text-white/25 outline-none
-                                  focus:border-amber-400/40 transition-colors"
-                              />
-                              <button
-                                onClick={(e) => handleSendInlineRemark(e, record.id)}
-                                disabled={!(remarkInputs[record.id] || '').trim() || sendingRemark === record.id}
-                                className="shrink-0 w-9 h-9 rounded-xl bg-amber-400 text-slate-900
-                                  flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-                              >
-                                {sendingRemark === record.id
-                                  ? <Loader2 size={14} className="animate-spin" />
-                                  : <Send size={14} />
-                                }
-                              </button>
-                            </div>
-                          )}
                         </div>
                       )
                     })}
@@ -529,6 +521,47 @@ export default function FacilityOrderListPage() {
             )
           })}
         </div>
+      )}
+      {/* 리마크 fixed 하단 입력바 — 키보드 위에 고정 */}
+      {remarkOpenId && (
+        <>
+          {/* 배경 딤 — 탭 시 닫기 */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setRemarkOpenId(null)}
+          />
+          <div
+            className="fixed left-0 right-0 z-50 px-3 py-2 bg-slate-900 border-t border-white/10 flex gap-2 items-center"
+            style={{ bottom: kbHeight }}
+          >
+            <input
+              ref={remarkInputRef}
+              type="text"
+              value={remarkInputs[remarkOpenId] || ''}
+              onChange={(e) => setRemarkInputs((prev) => ({ ...prev, [remarkOpenId]: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSendInlineRemark(e, remarkOpenId)
+                if (e.key === 'Escape') setRemarkOpenId(null)
+              }}
+              placeholder="리마크 입력"
+              style={{ fontSize: '16px' }}
+              className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5
+                text-white placeholder:text-white/25 outline-none
+                focus:border-amber-400/40 transition-colors"
+            />
+            <button
+              onClick={(e) => handleSendInlineRemark(e, remarkOpenId)}
+              disabled={!(remarkInputs[remarkOpenId] || '').trim() || sendingRemark === remarkOpenId}
+              className="shrink-0 w-10 h-10 rounded-xl bg-amber-400 text-slate-900
+                flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+            >
+              {sendingRemark === remarkOpenId
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Send size={16} />
+              }
+            </button>
+          </div>
+        </>
       )}
     </div>
   )
