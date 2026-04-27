@@ -118,8 +118,8 @@ export default function FacilityOrderDetailPage() {
         filter: `facility_order_id=eq.${id}`,
       }, (payload) => {
         if (payload.eventType === 'INSERT') {
-          // 작성자 name을 가져오기 위해 전체 재조회
-          fetchRemarks()
+          // 본인 전송은 낙관적 업데이트로 이미 반영됨 — 타인 리마크만 재조회
+          if (payload.new?.author_id !== user?.id) fetchRemarks()
         } else if (payload.eventType === 'DELETE') {
           setRemarks((prev) => prev.filter((r) => r.id !== payload.old.id))
         }
@@ -345,11 +345,15 @@ export default function FacilityOrderDetailPage() {
     if (!content || sending) return
 
     setSending(true)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('facility_order_remarks')
       .insert({ facility_order_id: id, author_id: user.id, content })
+      .select('id, content, created_at, author:users!author_id(id, name)')
+      .single()
 
-    if (!error) {
+    if (!error && data) {
+      // 낙관적 업데이트 — Realtime 지연 없이 즉시 반영
+      setRemarks((prev) => [...prev, data])
       setRemarkInput('')
     }
     setSending(false)
