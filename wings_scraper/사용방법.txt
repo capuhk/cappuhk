@@ -1,0 +1,63 @@
+=============================================
+  WINGS 객실 스크래퍼 v2 — 사용 방법
+=============================================
+
+
+[ 처음 설치할 때 ]
+─────────────────
+1. wings_scraper 폴더 전체를 PC에 복사
+2. register_task.bat 우클릭 → "관리자 권한으로 실행"
+3. 등록 완료 메시지 확인 후 종료
+   → PC를 켤 때마다 자동으로 백그라운드 실행됩니다
+
+
+[ 지금 바로 시작할 때 ]
+───────────────────────
+start_v2_hidden.vbs 더블클릭
+  → 지금 이 순간만 실행 (PC 재시작 시 자동 시작 안 됨)
+
+※ start_v2_hidden.vbs 와 register_task.bat 차이
+  - start_v2_hidden.vbs : 지금 당장 백그라운드로 실행만 함
+  - register_task.bat   : PC 켤 때마다 자동 시작되도록 스케줄러에 등록
+  → PC 재시작해도 자동으로 켜지려면 register_task.bat 을 한 번은 실행해야 함
+
+
+[ 로그 확인하는 방법 ]
+───────────────────────
+PowerShell을 열고 아래 명령어 입력:
+
+  Get-Content "C:\wings_scraper 폴더 경로\scraper_v2.log" -Wait -Tail 30
+
+예시)
+  Get-Content "C:\Users\사용자이름\Desktop\wings_scraper\scraper_v2.log" -Wait -Tail 30
+
+  - 실시간으로 로그가 추가되며 계속 보여집니다
+  - 종료하려면 Ctrl + C
+
+
+[ 스크래퍼를 끄는 방법 ]
+─────────────────────────
+방법 1) 작업 관리자로 끄기
+  Ctrl + Shift + Esc → "세부 정보" 탭
+  → python.exe 찾아서 우클릭 → "작업 끝내기"
+
+방법 2) PowerShell로 끄기
+  taskkill /f /im python.exe
+
+
+[ PC 재시작 후 자동 실행이 안 될 때 ]
+───────────────────────────────────────
+register_task.bat 을 다시 실행하면 재등록됩니다
+
+
+[ 파일 설명 ]
+─────────────
+  scraper_v2.py        : 스크래퍼 본체
+  scraper_v2.log       : 실행 로그 (여기서 상태 확인)
+  captured_request.json: 최초 1회 설정 후 자동 생성 (삭제 금지)
+  start_v2_hidden.vbs  : 창 없이 백그라운드 실행
+  register_task.bat    : 작업 스케줄러 자동 등록
+  python\              : 포터블 파이썬 (삭제 금지)
+  browsers\            : Playwright 브라우저 (삭제 금지)
+
+=============================================

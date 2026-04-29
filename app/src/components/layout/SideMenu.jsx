@@ -19,13 +19,13 @@ const MAIN_TABS = [
     path: '/defect',
     label: '객실하자',
     Icon: AlertTriangle,
-    roles: ['admin', 'manager', 'supervisor', 'maid', 'facility'],
+    roles: ['admin', 'manager', 'supervisor', 'facility'],
   },
   {
     path: '/facility-order',
     label: '오더',
     Icon: Wrench,
-    roles: ['admin', 'manager', 'supervisor', 'maid', 'facility', 'houseman', 'front'],
+    roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'],
   },
 ]
 

@@ -2,7 +2,7 @@ Dim scriptDir
 scriptDir = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\"))
 
 Dim pythonExe
-pythonExe = scriptDir & "python\python.exe"
+pythonExe = scriptDir & "python\pythonw.exe"
 
 Dim WshShell
 Set WshShell = CreateObject("WScript.Shell")

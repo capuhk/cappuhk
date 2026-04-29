@@ -16,7 +16,9 @@ from config import (
     WINGS_LOGIN_URL, WINGS_URL,
     WINGS_COMPANY_ID, WINGS_ID, WINGS_PW,
     PROPERTY_NO, BSNS_CODE,
-    SCRAPE_INTERVAL, SCRAPE_HOUR_START, SCRAPE_HOUR_END,
+    SCRAPE_INTERVAL,
+    SCRAPE_HOUR_START, SCRAPE_MINUTE_START,
+    SCRAPE_HOUR_END, SCRAPE_MINUTE_END,
 )
 from supabase_client import upsert_rooms
 
@@ -92,11 +94,23 @@ async def login(page) -> bool:
     """
     WINGS 자동 로그인.
     JS로 값을 직접 주입 + 이벤트 강제 발생 (ExtJS 오래된 폼 대응).
+    일마감 오류 페이지 감지 시 로그인 화면으로 이동 후 재시도.
     성공 여부 반환.
     """
     logger.info(f'WINGS 로그인 시도: {WINGS_LOGIN_URL}')
     await page.goto(WINGS_LOGIN_URL, wait_until='domcontentloaded', timeout=30000)
     await asyncio.sleep(1)
+
+    # 일마감 오류 페이지 감지 — "Login 화면으로 이동" 링크 클릭
+    try:
+        login_link = page.get_by_text('Login 화면으로 이동')
+        if await login_link.is_visible(timeout=2000):
+            logger.info('일마감 오류 페이지 감지 — 로그인 화면으로 이동')
+            await login_link.click()
+            await page.wait_for_load_state('domcontentloaded', timeout=10000)
+            await asyncio.sleep(1)
+    except Exception:
+        pass  # 오류 페이지 아님 — 정상 로그인 화면
 
     # JS로 필드 값 주입 + 이벤트 강제 발생
     await page.evaluate(f'''() => {{
@@ -314,13 +328,20 @@ async def main():
         was_outside_hours = False  # 운영 시간 외 대기 여부 추적
 
         while True:
-            # 운영 시간대 체크
-            current_hour = datetime.now().hour
-            in_hours     = SCRAPE_HOUR_START <= current_hour < SCRAPE_HOUR_END
+            # 운영 시간대 체크 (분 단위)
+            now          = datetime.now()
+            current_time = now.hour * 60 + now.minute
+            start_time   = SCRAPE_HOUR_START * 60 + SCRAPE_MINUTE_START
+            end_time     = SCRAPE_HOUR_END   * 60 + SCRAPE_MINUTE_END
+            in_hours     = start_time <= current_time < end_time
 
             if not in_hours:
                 if not was_outside_hours:
-                    logger.info(f'운영 시간 종료 ({current_hour}시) — {SCRAPE_HOUR_START}~{SCRAPE_HOUR_END}시까지 대기')
+                    logger.info(
+                        f'운영 시간 종료 ({now.strftime("%H:%M")}) — '
+                        f'{SCRAPE_HOUR_START:02d}:{SCRAPE_MINUTE_START:02d}~'
+                        f'{SCRAPE_HOUR_END:02d}:{SCRAPE_MINUTE_END:02d}까지 대기'
+                    )
                 was_outside_hours = True
                 await asyncio.sleep(60)
                 continue

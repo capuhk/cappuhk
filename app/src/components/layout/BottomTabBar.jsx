@@ -20,13 +20,13 @@ const TABS = [
     path: '/defect',
     label: '객실하자',
     Icon: Bed,
-    roles: ['admin', 'manager', 'supervisor', 'maid', 'facility'],
+    roles: ['admin', 'manager', 'supervisor', 'facility'],
   },
   {
     path: '/facility-order',
     label: '오더',
     Icon: ConciergeBell,
-    roles: ['admin', 'manager', 'supervisor', 'maid', 'facility', 'houseman', 'front'],
+    roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'],
   },
 ]
 
