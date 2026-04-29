@@ -29,8 +29,8 @@ export default function DefectListPage() {
   const [dateTo,   setDateTo]   = useState(() => dayjs().format('YYYY-MM-DD'))
   const [dateOpen, setDateOpen] = useState(false)
 
-  // ── Phase 1: 경량 데이터 (id, room_no, status, created_at) ──
-  const [lightRecords,   setLightRecords]   = useState([])
+  // ── Phase 1: RPC 집계 결과 { room_no, status, cnt }[] ──
+  const [rpcSummary,     setRpcSummary]     = useState([])
   const [initialLoading, setInitialLoading] = useState(true)
   // ── Phase 2: 객실번호별 전체 레코드 캐시 ─────
   const [roomCache,   setRoomCache]   = useState({})
@@ -47,33 +47,33 @@ export default function DefectListPage() {
 
   const isSearchMode = search.trim().length > 0
 
-  // ── Phase 1: 경량 로드 ────────────────────────
+  // ── Phase 1: RPC로 서버 집계 (1000건 제한 우회) ─
   useEffect(() => {
     const controller = new AbortController()
     const timeoutId  = setTimeout(() => controller.abort(), 10000)
 
-    const fetchLight = async () => {
+    const fetchCounts = async () => {
       setInitialLoading(true)
       setRoomCache({})
       setOpenRooms(new Set())
       try {
         const { data, error } = await supabase
-          .from('defects')
-          .select('id, room_no, status, created_at')
-          .gte('created_at', `${dateFrom}T00:00:00`)
-          .lte('created_at', `${dateTo}T23:59:59`)
+          .rpc('get_defect_room_counts', {
+            p_from: `${dateFrom}T00:00:00`,
+            p_to:   `${dateTo}T23:59:59`,
+          })
           .abortSignal(controller.signal)
 
-        if (!error && data) setLightRecords(data)
+        if (!error && data) setRpcSummary(data)
       } catch (err) {
-        if (err?.name !== 'AbortError') console.error('객실하자 경량 로드 오류:', err)
+        if (err?.name !== 'AbortError') console.error('객실하자 집계 로드 오류:', err)
       } finally {
         clearTimeout(timeoutId)
         setInitialLoading(false)
       }
     }
 
-    fetchLight()
+    fetchCounts()
     return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey, dateFrom, dateTo])
 
@@ -187,18 +187,22 @@ export default function DefectListPage() {
     }
   }
 
-  // ── 객실별 건수 집계 (lightRecords 기반) ─────
-  const roomCounts = useMemo(() =>
-    lightRecords.reduce((acc, r) => {
-      acc[r.room_no] = (acc[r.room_no] || 0) + 1
-      return acc
-    }, {}),
-  [lightRecords])
+  // ── RPC 결과에서 객실별/상태별 건수 도출 ──────
+  const { roomCounts, statusCounts } = useMemo(() => {
+    const rc = {}, sc = {}
+    for (const r of rpcSummary) {
+      const cnt = Number(r.cnt)
+      rc[r.room_no] = (rc[r.room_no] || 0) + cnt
+      sc[r.status]  = (sc[r.status]  || 0) + cnt
+    }
+    return { roomCounts: rc, statusCounts: sc }
+  }, [rpcSummary])
 
   // ── 상태 필터 건수 ────────────────────────────
   const countFor = (val) => {
-    if (val === 'All') return lightRecords.length
-    return lightRecords.filter((r) => r.status === val).length
+    const total = Object.values(statusCounts).reduce((s, n) => s + n, 0)
+    if (val === 'All') return total
+    return statusCounts[val] || 0
   }
 
   // ── 검색 모드 그룹 ────────────────────────────
@@ -215,11 +219,11 @@ export default function DefectListPage() {
   // ── 표시할 객실 목록 ──────────────────────────
   const rooms = useMemo(() => {
     if (isSearchMode) return Object.keys(searchGrouped).sort((a, b) => a.localeCompare(b, 'ko'))
-    // 기본 모드 — statusFilter 적용한 lightRecords 기준
-    let src = lightRecords
-    if (statusFilter !== 'All') src = src.filter((r) => r.status === statusFilter)
-    return [...new Set(src.map((r) => r.room_no))].sort((a, b) => a.localeCompare(b, 'ko'))
-  }, [isSearchMode, searchGrouped, lightRecords, statusFilter])
+    if (statusFilter === 'All') return Object.keys(roomCounts).sort((a, b) => a.localeCompare(b, 'ko'))
+    // 특정 상태 필터 — rpcSummary에서 해당 상태 있는 객실만
+    const filtered = new Set(rpcSummary.filter((r) => r.status === statusFilter).map((r) => r.room_no))
+    return [...filtered].sort((a, b) => a.localeCompare(b, 'ko'))
+  }, [isSearchMode, searchGrouped, roomCounts, rpcSummary, statusFilter])
 
   // ── 객실의 표시 레코드 ────────────────────────
   const getRecords = (room) => {
@@ -247,10 +251,6 @@ export default function DefectListPage() {
         .eq('id', record.id)
 
       if (!error) {
-        // lightRecords 업데이트
-        setLightRecords((prev) => prev.map((r) =>
-          r.id === record.id ? { ...r, status: newStatus } : r
-        ))
         // roomCache 업데이트
         setRoomCache((prev) => ({
           ...prev,
@@ -313,7 +313,7 @@ export default function DefectListPage() {
         </button>
         <button
           onClick={() => handleExport('excel')}
-          disabled={exporting || lightRecords.length === 0}
+          disabled={exporting || rpcSummary.length === 0}
           className="shrink-0 flex items-center px-2.5 py-2.5 rounded-xl border
             border-white/5 bg-slate-900 text-white/50 hover:bg-slate-800 shadow-sm
             disabled:opacity-30 transition-colors"
@@ -323,7 +323,7 @@ export default function DefectListPage() {
         </button>
         <button
           onClick={() => handleExport('print')}
-          disabled={exporting || lightRecords.length === 0}
+          disabled={exporting || rpcSummary.length === 0}
           className="shrink-0 flex items-center px-2.5 py-2.5 rounded-xl border
             border-white/5 bg-slate-900 text-white/50 hover:bg-slate-800 shadow-sm
             disabled:opacity-30 transition-colors"

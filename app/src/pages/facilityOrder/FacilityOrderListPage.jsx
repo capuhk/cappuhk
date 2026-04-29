@@ -45,9 +45,9 @@ export default function FacilityOrderListPage() {
 
   const [policies, setPolicies] = useState(() => getCachedDataSync(CACHE_KEYS.appPolicies) || [])
 
-  // ── Phase 1: 경량 데이터 (id, work_date, status, is_urgent) ──
-  const [lightRecords,    setLightRecords]    = useState([])
-  const [initialLoading,  setInitialLoading]  = useState(true)
+  // ── Phase 1: RPC 집계 결과 { work_date, status, is_urgent, cnt }[] ──
+  const [rpcSummary,     setRpcSummary]     = useState([])
+  const [initialLoading, setInitialLoading] = useState(true)
   // ── Phase 2: 날짜별 전체 레코드 캐시 ─────────────
   const [dateCache,    setDateCache]    = useState({})
   const [loadingDate,  setLoadingDate]  = useState(null)
@@ -63,33 +63,30 @@ export default function FacilityOrderListPage() {
 
   const isSearchMode = search.trim().length > 0
 
-  // ── Phase 1: 경량 로드 ────────────────────────
+  // ── Phase 1: RPC로 서버 집계 (1000건 제한 우회) ─
   useEffect(() => {
     const controller = new AbortController()
     const timeoutId  = setTimeout(() => controller.abort(), 10000)
 
-    const fetchLight = async () => {
+    const fetchCounts = async () => {
       setInitialLoading(true)
       setDateCache({})
       setOpenDates(new Set())
       try {
         const { data, error } = await supabase
-          .from('facility_orders')
-          .select('id, work_date, status, is_urgent')
-          .gte('work_date', dateFrom)
-          .lte('work_date', dateTo)
+          .rpc('get_facility_order_date_counts', { p_from: dateFrom, p_to: dateTo })
           .abortSignal(controller.signal)
 
-        if (!error && data) setLightRecords(data)
+        if (!error && data) setRpcSummary(data)
       } catch (err) {
-        if (err?.name !== 'AbortError') console.error('오더 경량 로드 오류:', err)
+        if (err?.name !== 'AbortError') console.error('오더 집계 로드 오류:', err)
       } finally {
         clearTimeout(timeoutId)
         setInitialLoading(false)
       }
     }
 
-    fetchLight()
+    fetchCounts()
     getMasterData(CACHE_KEYS.appPolicies).then(setPolicies).catch(console.error)
 
     return () => { clearTimeout(timeoutId); controller.abort() }
@@ -123,12 +120,6 @@ export default function FacilityOrderListPage() {
 
       if (!error && data) {
         setDateCache((prev) => ({ ...prev, [date]: data }))
-        setLightRecords((prev) => {
-          // 로드된 실제 건수로 경량 레코드 보정
-          const others = prev.filter((r) => r.work_date !== date)
-          const updates = data.map((r) => ({ id: r.id, work_date: r.work_date, status: r.status, is_urgent: r.is_urgent }))
-          return [...others, ...updates]
-        })
         setOpenDates((prev) => new Set([...prev, date]))
       }
     } catch (err) {
@@ -208,19 +199,24 @@ export default function FacilityOrderListPage() {
     }
   }
 
-  // ── 날짜별 건수 집계 (lightRecords 기반) ─────
-  const dateCounts = useMemo(() =>
-    lightRecords.reduce((acc, r) => {
-      acc[r.work_date] = (acc[r.work_date] || 0) + 1
-      return acc
-    }, {}),
-  [lightRecords])
+  // ── RPC 결과에서 날짜별/상태별/긴급 건수 도출 ─
+  const { dateCounts, statusCounts, urgentCounts } = useMemo(() => {
+    const dc = {}, sc = {}, uc = {}
+    for (const r of rpcSummary) {
+      const cnt = Number(r.cnt)
+      dc[r.work_date] = (dc[r.work_date] || 0) + cnt
+      sc[r.status]    = (sc[r.status]    || 0) + cnt
+      if (r.is_urgent) uc[r.work_date] = (uc[r.work_date] || 0) + cnt
+    }
+    return { dateCounts: dc, statusCounts: sc, urgentCounts: uc }
+  }, [rpcSummary])
 
   // ── 상태 필터 건수 ────────────────────────────
   const countFor = (val) => {
-    if (val === 'all')        return lightRecords.length
-    if (val === 'incomplete') return lightRecords.filter((r) => r.status !== '완료' && r.status !== '이관').length
-    return lightRecords.filter((r) => r.status === val).length
+    const total = Object.values(statusCounts).reduce((s, n) => s + n, 0)
+    if (val === 'all')        return total
+    if (val === 'incomplete') return total - (statusCounts['완료'] || 0) - (statusCounts['이관'] || 0)
+    return statusCounts[val] || 0
   }
 
   // ── 검색 모드 그룹 ────────────────────────────
@@ -256,12 +252,10 @@ export default function FacilityOrderListPage() {
     ? (searchGrouped[date] || []).length
     : (dateCounts[date] || 0)
 
-  // ── 긴급 건수 (Phase 1 or 검색 결과 기반) ────
+  // ── 긴급 건수 ────────────────────────────────
   const getUrgentCount = (date) => {
-    const src = isSearchMode
-      ? (searchGrouped[date] || [])
-      : lightRecords.filter((r) => r.work_date === date)
-    return src.filter((r) => r.is_urgent).length
+    if (isSearchMode) return (searchGrouped[date] || []).filter((r) => r.is_urgent).length
+    return urgentCounts[date] || 0
   }
 
   // ── 빠른 상태 변경 ───────────────────────────
@@ -287,10 +281,6 @@ export default function FacilityOrderListPage() {
         .eq('id', record.id)
 
       if (!error) {
-        // lightRecords 업데이트 (건수 정확성 유지)
-        setLightRecords((prev) => prev.map((r) =>
-          r.id === record.id ? { ...r, status: newStatus } : r
-        ))
         // dateCache 업데이트
         setDateCache((prev) => ({
           ...prev,
@@ -415,7 +405,7 @@ export default function FacilityOrderListPage() {
         </button>
         <button
           onClick={() => handleExport('excel')}
-          disabled={exporting || lightRecords.length === 0}
+          disabled={exporting || rpcSummary.length === 0}
           className="shrink-0 flex items-center gap-1 px-2.5 py-2.5 rounded-xl border
             border-white/5 bg-slate-900 text-white/50 hover:bg-slate-800 shadow-sm
             disabled:opacity-30 transition-colors"
@@ -425,7 +415,7 @@ export default function FacilityOrderListPage() {
         </button>
         <button
           onClick={() => handleExport('print')}
-          disabled={exporting || lightRecords.length === 0}
+          disabled={exporting || rpcSummary.length === 0}
           className="shrink-0 flex items-center gap-1 px-2.5 py-2.5 rounded-xl border
             border-white/5 bg-slate-900 text-white/50 hover:bg-slate-800 shadow-sm
             disabled:opacity-30 transition-colors"
