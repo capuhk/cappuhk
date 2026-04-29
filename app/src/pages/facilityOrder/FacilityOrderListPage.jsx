@@ -92,6 +92,15 @@ export default function FacilityOrderListPage() {
     return () => { clearTimeout(timeoutId); controller.abort() }
   }, [refreshKey, dateFrom, dateTo])
 
+  // ── 당일 아코디언 자동 펼침 (Phase 1 로드 후) ─
+  useEffect(() => {
+    if (rpcSummary.length === 0 || isSearchMode) return
+    const today = dayjs().format('YYYY-MM-DD')
+    if (rpcSummary.some((r) => r.work_date === today)) {
+      handleToggleDate(today)
+    }
+  }, [rpcSummary]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Phase 2: 날짜 클릭 시 전체 레코드 로드 ───
   const handleToggleDate = async (date) => {
     if (isSearchMode) {
@@ -623,7 +632,7 @@ export default function FacilityOrderListPage() {
       {/* 리마크 fixed 하단 입력바 */}
       {remarkOpenId && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setRemarkOpenId(null)} />
+          <div className="fixed inset-0 z-[45]" onClick={() => setRemarkOpenId(null)} />
           <div
             className="fixed left-0 right-0 z-50 px-3 py-2 bg-slate-900 border-t border-white/10 flex gap-2 items-center"
             style={{ bottom: kbHeight }}
