@@ -10,7 +10,7 @@ import useAuthStore from '../../store/useAuthStore'
 import useNotificationStore from '../../store/useNotificationStore'
 
 // 메인 탭 경로 — 햄버거 버튼 표시 대상
-const MAIN_TAB_PATHS = ['/inspection', '/defect', '/facility-order']
+const MAIN_TAB_PATHS = ['/inspection', '/defect', '/facility-order', '/rooms']
 
 // 경로 → 화면 타이틀 매핑
 const TITLE_MAP = {
