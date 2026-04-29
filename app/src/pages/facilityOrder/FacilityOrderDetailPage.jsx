@@ -44,7 +44,9 @@ export default function FacilityOrderDetailPage() {
   const [remarkInput, setRemarkInput] = useState('')
   const [sending, setSending]         = useState(false)
   const [deletingRemark, setDeletingRemark] = useState(null)
-  const remarksEndRef = useRef(null)
+  const [kbHeight, setKbHeight]       = useState(0)
+  const remarksEndRef  = useRef(null)
+  const remarkInputRef = useRef(null)
 
   // ── 데이터 로드 ───────────────────────────────
   const fetchData = async () => {
@@ -133,6 +135,14 @@ export default function FacilityOrderDetailPage() {
   useEffect(() => {
     remarksEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [remarks])
+
+  // ── iOS 키보드 높이 추적 ─────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return
+    const update = () => setKbHeight(window.innerHeight - window.visualViewport.height)
+    window.visualViewport.addEventListener('resize', update)
+    return () => window.visualViewport.removeEventListener('resize', update)
+  }, [])
 
   // ── 관리자인 경우 이관용 마스터 데이터 로드 ───
   const isManager  = ['admin', 'manager', 'supervisor'].includes(user?.role)
@@ -655,38 +665,10 @@ export default function FacilityOrderDetailPage() {
             <div ref={remarksEndRef} />
           </div>
 
-          {/* 리마크 입력창 */}
-          <div className="flex gap-2 items-end">
-            <textarea
-              value={remarkInput}
-              onChange={(e) => setRemarkInput(e.target.value)}
-              onKeyDown={handleRemarkKeyDown}
-              placeholder="리마크 입력 (버튼으로 전송)"
-              rows={1}
-              className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5
-                text-sm text-white placeholder:text-white/25 outline-none resize-none
-                focus:border-amber-400/40 transition-colors leading-relaxed"
-              style={{ minHeight: '42px', maxHeight: '120px' }}
-              onInput={(e) => {
-                // 내용에 따라 높이 자동 조절
-                e.target.style.height = 'auto'
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
-              }}
-            />
-            <button
-              onClick={handleSendRemark}
-              disabled={!remarkInput.trim() || sending}
-              className="shrink-0 w-10 h-10 rounded-xl bg-amber-400 text-slate-900
-                flex items-center justify-center
-                disabled:opacity-30 active:scale-95 transition-all"
-            >
-              {sending
-                ? <Loader2 size={16} className="animate-spin" />
-                : <Send size={16} />
-              }
-            </button>
-          </div>
         </div>
+
+      {/* 하단 여백 — fixed 입력바에 가리지 않도록 */}
+      <div className="h-20" />
 
         {/* 삭제 버튼 */}
         {canDelete && (
@@ -752,6 +734,41 @@ export default function FacilityOrderDetailPage() {
           )}
         </div>
       </BottomSheet>
+
+      {/* 리마크 fixed 하단 입력바 — 키보드 위에 고정 */}
+      <div
+        className="fixed left-0 right-0 z-50 bg-slate-950 border-t border-white/10
+          flex items-end gap-2 px-3 py-2 lg:left-60"
+        style={{ bottom: kbHeight, paddingBottom: `calc(0.5rem + env(safe-area-inset-bottom, 0px))` }}
+      >
+        <textarea
+          ref={remarkInputRef}
+          value={remarkInput}
+          onChange={(e) => setRemarkInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') e.target.blur() }}
+          placeholder="리마크 입력 (버튼으로 전송)"
+          rows={1}
+          style={{ fontSize: '16px', maxHeight: '96px' }}
+          className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5
+            text-sm text-white placeholder:text-white/25 outline-none resize-none
+            focus:border-amber-400/40 transition-colors leading-relaxed"
+          onInput={(e) => {
+            e.target.style.height = 'auto'
+            e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`
+          }}
+        />
+        <button
+          onClick={handleSendRemark}
+          disabled={!remarkInput.trim() || sending}
+          className="shrink-0 w-10 h-10 rounded-xl bg-amber-400 text-slate-900
+            flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+        >
+          {sending
+            ? <Loader2 size={16} className="animate-spin" />
+            : <Send size={16} />
+          }
+        </button>
+      </div>
     </div>
   )
 }
