@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Loader2, Trash2, ImageOff, X, ZoomIn, Send } from 'lucide-react'
+import { Loader2, Trash2, ImageOff, X, ZoomIn, Send, MessageSquare } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
@@ -44,6 +44,7 @@ export default function FacilityOrderDetailPage() {
   const [remarkInput, setRemarkInput] = useState('')
   const [sending, setSending]         = useState(false)
   const [deletingRemark, setDeletingRemark] = useState(null)
+  const [remarkBarOpen, setRemarkBarOpen] = useState(false)
   const [kbHeight, setKbHeight]       = useState(0)
   const remarksEndRef  = useRef(null)
   const remarkInputRef = useRef(null)
@@ -138,11 +139,18 @@ export default function FacilityOrderDetailPage() {
 
   // ── iOS 키보드 높이 추적 ─────────────────────
   useEffect(() => {
+    if (!remarkBarOpen) { setKbHeight(0); return }
     if (typeof window === 'undefined' || !window.visualViewport) return
     const update = () => setKbHeight(window.innerHeight - window.visualViewport.height)
     window.visualViewport.addEventListener('resize', update)
+    update()
     return () => window.visualViewport.removeEventListener('resize', update)
-  }, [])
+  }, [remarkBarOpen])
+
+  // ── 리마크 바 열릴 때 자동 포커스 ────────────
+  useEffect(() => {
+    if (remarkBarOpen) setTimeout(() => remarkInputRef.current?.focus(), 100)
+  }, [remarkBarOpen])
 
   // ── 관리자인 경우 이관용 마스터 데이터 로드 ───
   const isManager  = ['admin', 'manager', 'supervisor'].includes(user?.role)
@@ -609,7 +617,16 @@ export default function FacilityOrderDetailPage() {
 
         {/* ── 리마크 섹션 ─────────────────────────── */}
         <div className="pt-2">
-          <p className="text-xs text-white/40 mb-3 px-1">리마크</p>
+          <div className="flex items-center justify-between px-1 mb-3">
+            <p className="text-xs text-white/40">리마크</p>
+            <button
+              onClick={() => setRemarkBarOpen(true)}
+              className="flex items-center gap-1 text-xs text-amber-400/70 hover:text-amber-400 transition-colors"
+            >
+              <MessageSquare size={12} />
+              리마크 입력
+            </button>
+          </div>
 
           {/* 리마크 목록 */}
           <div className="space-y-2 mb-3">
@@ -667,8 +684,6 @@ export default function FacilityOrderDetailPage() {
 
         </div>
 
-      {/* 하단 여백 — fixed 입력바에 가리지 않도록 */}
-      <div className="h-20" />
 
         {/* 삭제 버튼 */}
         {canDelete && (
@@ -735,40 +750,49 @@ export default function FacilityOrderDetailPage() {
         </div>
       </BottomSheet>
 
-      {/* 리마크 fixed 하단 입력바 — 키보드 위에 고정 */}
-      <div
-        className="fixed left-0 right-0 z-50 bg-slate-950 border-t border-white/10
-          flex items-end gap-2 px-3 py-2 lg:left-60"
-        style={{ bottom: kbHeight, paddingBottom: `calc(0.5rem + env(safe-area-inset-bottom, 0px))` }}
-      >
-        <textarea
-          ref={remarkInputRef}
-          value={remarkInput}
-          onChange={(e) => setRemarkInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Escape') e.target.blur() }}
-          placeholder="리마크 입력 (버튼으로 전송)"
-          rows={1}
-          style={{ fontSize: '16px', maxHeight: '96px' }}
-          className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5
-            text-sm text-white placeholder:text-white/25 outline-none resize-none
-            focus:border-amber-400/40 transition-colors leading-relaxed"
-          onInput={(e) => {
-            e.target.style.height = 'auto'
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`
-          }}
-        />
-        <button
-          onClick={handleSendRemark}
-          disabled={!remarkInput.trim() || sending}
-          className="shrink-0 w-10 h-10 rounded-xl bg-amber-400 text-slate-900
-            flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
-        >
-          {sending
-            ? <Loader2 size={16} className="animate-spin" />
-            : <Send size={16} />
-          }
-        </button>
-      </div>
+      {/* 리마크 fixed 하단 입력바 — 목록과 동일한 오버레이 방식 */}
+      {remarkBarOpen && (
+        <>
+          {/* 배경 딤 — 탭 시 닫기 */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setRemarkBarOpen(false)}
+          />
+          <div
+            className="fixed left-0 right-0 z-50 bg-slate-950 border-t border-white/10
+              flex items-end gap-2 px-3 py-2 lg:left-60"
+            style={{ bottom: kbHeight, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
+            <textarea
+              ref={remarkInputRef}
+              value={remarkInput}
+              onChange={(e) => setRemarkInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setRemarkBarOpen(false) }}
+              placeholder="리마크 입력 (버튼으로 전송)"
+              rows={1}
+              style={{ fontSize: '16px', maxHeight: '96px' }}
+              className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5
+                text-sm text-white placeholder:text-white/25 outline-none resize-none
+                focus:border-amber-400/40 transition-colors leading-relaxed"
+              onInput={(e) => {
+                e.target.style.height = 'auto'
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`
+              }}
+            />
+            <button
+              onClick={handleSendRemark}
+              disabled={!remarkInput.trim() || sending}
+              className="shrink-0 w-10 h-10 rounded-xl bg-amber-400 text-slate-900
+                flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all"
+            >
+              {sending
+                ? <Loader2 size={16} className="animate-spin" />
+                : <Send size={16} />
+              }
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
