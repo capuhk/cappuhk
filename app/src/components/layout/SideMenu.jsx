@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   X, FileSearch, BookOpen, Users,
   BarChart2, Settings, LogOut, ChevronDown,
-  ClipboardList, AlertTriangle, Wrench, Hotel,
+  ClipboardList, AlertTriangle, Wrench, Hotel, Bell,
 } from 'lucide-react'
 import useAuthStore from '../../store/useAuthStore'
 
@@ -33,9 +33,10 @@ const MAIN_TABS = [
 // 게시판은 noticeReadRoles 정책으로 동적 제어 (하드코딩 제거)
 const MENU_ITEMS = [
   { path: '/inspection-review', label: '인스펙션조회', Icon: FileSearch, managerOnly: true },
+  { path: '/announcement',      label: '공지',         Icon: Bell,       managerOnly: false },
   { path: '/notice',            label: '게시판',       Icon: BookOpen,   managerOnly: false, noticeGuard: true },
   { path: '/staff',             label: '직원목록',     Icon: Users,      managerOnly: false },
-  { path: '/rooms',             label: '객실현황',     Icon: Hotel,     managerOnly: false },
+  { path: '/rooms',             label: '객실현황',     Icon: Hotel,      managerOnly: false },
   { path: '/dashboard',         label: '통계/대시보드', Icon: BarChart2,  managerOnly: true },
   { path: '/settings',          label: '설정',         Icon: Settings,   managerOnly: false, excludeRoles: ['houseman', 'front'] },
 ]

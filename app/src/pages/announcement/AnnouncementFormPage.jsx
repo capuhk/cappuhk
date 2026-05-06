@@ -6,70 +6,76 @@ import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
 import ImageUploader from '../../components/common/ImageUploader'
 import { networkSave } from '../../utils/networkSave'
+import { sendPush } from '../../utils/sendPush'
 
-export default function NoticeFormPage() {
+const ALL_ROLES = [
+  { value: 'admin',      label: '관리자' },
+  { value: 'manager',    label: '소장' },
+  { value: 'supervisor', label: '주임' },
+  { value: 'maid',       label: '메이드' },
+  { value: 'facility',   label: '시설' },
+  { value: 'houseman',   label: '하우스맨' },
+  { value: 'front',      label: '프론트' },
+]
+
+export default function AnnouncementFormPage() {
   const { id }   = useParams()
   const isEdit   = Boolean(id)
   const navigate = useNavigate()
   const { user } = useAuthStore()
 
-  // ── 폼 필드 ───────────────────────────────────────
-  const [title, setTitle]           = useState('')
-  const [content, setContent]       = useState('')
-  const [imagePaths, setImagePaths] = useState([])
+  const [title, setTitle]             = useState('')
+  const [content, setContent]         = useState('')
+  const [imagePaths, setImagePaths]   = useState([])
+  // 빈 배열 = 전체 공개
+  const [targetRoles, setTargetRoles] = useState([])
 
-  // ── 메타 (수정 모드) ──────────────────────────────
   const [authorName, setAuthorName]   = useState('')
   const [createdAt, setCreatedAt]     = useState(null)
   const [updaterName, setUpdaterName] = useState(null)
 
-  // ── UI 상태 ──────────────────────────────────────
   const [loading, setLoading] = useState(isEdit)
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState(null)
 
-  // ── 등록 모드: 작성자명 세팅 ──────────────────────
   useEffect(() => {
     if (!isEdit && user) setAuthorName(user.name)
   }, [isEdit, user])
 
-  // ── 수정 모드: 기존 데이터 로드 ──────────────────
   useEffect(() => {
     if (!isEdit) return
-
     const fetchData = async () => {
       const { data, error: fetchErr } = await supabase
         .from('notices')
         .select(`
-          id, is_pinned, title, content, target_roles, created_at,
+          id, title, content, target_roles, created_at,
           notice_images(id, thumb_path, sort_order),
           author:users!author_id(name),
           updater:users!updated_by(name)
         `)
         .eq('id', id)
+        .eq('is_pinned', true)
         .single()
 
       if (fetchErr || !data) {
-        navigate('/notice', { replace: true })
+        navigate('/announcement', { replace: true })
         return
       }
 
       setTitle(data.title)
       setContent(data.content)
+      setTargetRoles(data.target_roles || [])
       setAuthorName(data.author?.name || '')
       setCreatedAt(data.created_at)
       setUpdaterName(data.updater?.name || null)
 
       const sorted = [...(data.notice_images || [])].sort((a, b) => a.sort_order - b.sort_order)
       setImagePaths(sorted.map((img) => img.thumb_path).filter(Boolean))
-
       setLoading(false)
     }
-
     fetchData()
   }, [id, isEdit, navigate])
 
-  // ── 저장 ─────────────────────────────────────────
   const handleSubmit = async () => {
     if (!title.trim()) { setError('제목을 입력해주세요.'); return }
     if (!content.trim()) { setError('내용을 입력해주세요.'); return }
@@ -79,61 +85,70 @@ export default function NoticeFormPage() {
 
     try {
       await networkSave(async () => {
-      if (isEdit) {
-        // ── 수정 ──────────────────────────────────
-        const { error: upErr } = await supabase
-          .from('notices')
-          .update({
-            title:      title.trim(),
-            content:    content.trim(),
-            updated_by: user.id,
+        if (isEdit) {
+          const { error: upErr } = await supabase
+            .from('notices')
+            .update({
+              title:        title.trim(),
+              content:      content.trim(),
+              target_roles: targetRoles,
+              updated_by:   user.id,
+            })
+            .eq('id', id)
+
+          if (upErr) throw upErr
+
+          await supabase.from('notice_images').delete().eq('notice_id', id)
+          if (imagePaths.length > 0) {
+            await supabase.from('notice_images').insert(
+              imagePaths.map((path, idx) => ({
+                notice_id:  id,
+                thumb_path: path,
+                sort_order: idx,
+              }))
+            )
+          }
+          navigate(`/announcement/${id}`, { replace: true })
+
+        } else {
+          const { data: noticeData, error: insertErr } = await supabase
+            .from('notices')
+            .insert({
+              is_pinned:    true,
+              title:        title.trim(),
+              content:      content.trim(),
+              target_roles: targetRoles,
+              author_id:    user.id,
+            })
+            .select('id')
+            .single()
+
+          if (insertErr) throw insertErr
+
+          if (imagePaths.length > 0) {
+            await supabase.from('notice_images').insert(
+              imagePaths.map((path, idx) => ({
+                notice_id:  noticeData.id,
+                thumb_path: path,
+                sort_order: idx,
+              }))
+            )
+          }
+
+          // 공개 대상 역할에게 푸시 발송 (전체면 전 역할)
+          const pushRoles = targetRoles.length > 0
+            ? targetRoles
+            : ALL_ROLES.map((r) => r.value)
+          sendPush({
+            roles: pushRoles,
+            title: '📢 공지',
+            body:  title.trim(),
+            url:   `/announcement/${noticeData.id}`,
           })
-          .eq('id', id)
 
-        if (upErr) throw upErr
-
-        // 이미지 전체 교체
-        await supabase.from('notice_images').delete().eq('notice_id', id)
-        if (imagePaths.length > 0) {
-          await supabase.from('notice_images').insert(
-            imagePaths.map((path, idx) => ({
-              notice_id:  id,
-              thumb_path: path,
-              sort_order: idx,
-            })),
-          )
+          navigate('/announcement', { replace: true })
         }
-
-        navigate(`/notice/${id}`, { replace: true })
-
-      } else {
-        // ── 등록 ──────────────────────────────────
-        const { data: noticeData, error: insertErr } = await supabase
-          .from('notices')
-          .insert({
-            is_pinned: false,
-            title:     title.trim(),
-            content:   content.trim(),
-            author_id: user.id,
-          })
-          .select('id')
-          .single()
-
-        if (insertErr) throw insertErr
-
-        if (imagePaths.length > 0) {
-          await supabase.from('notice_images').insert(
-            imagePaths.map((path, idx) => ({
-              notice_id:  noticeData.id,
-              thumb_path: path,
-              sort_order: idx,
-            })),
-          )
-        }
-
-        navigate('/notice', { replace: true })
-      }
-      }) // networkSave 종료
+      })
     } catch (err) {
       if (!err?.isTimeout) {
         console.error(err)
@@ -144,7 +159,6 @@ export default function NoticeFormPage() {
     }
   }
 
-  // ── 로딩 ─────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -153,10 +167,51 @@ export default function NoticeFormPage() {
     )
   }
 
-  // ── 렌더 ─────────────────────────────────────────
   return (
     <div>
       <div className="px-4 pt-6 pb-48 space-y-6">
+
+        {/* 공개 대상 */}
+        <section>
+          <label className="block text-sm text-white/50 mb-2">공개 대상</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setTargetRoles([])}
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+                targetRoles.length === 0
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-white/10 text-white/50 hover:bg-white/15'
+              }`}
+            >
+              전체
+            </button>
+            {ALL_ROLES.map(({ value, label }) => {
+              const selected = targetRoles.includes(value)
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => {
+                    setTargetRoles((prev) =>
+                      selected ? prev.filter((r) => r !== value) : [...prev, value]
+                    )
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all active:scale-95 ${
+                    selected
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-white/10 text-white/50 hover:bg-white/15'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-white/25 mt-2">
+            선택된 역할에게만 팝업 공지가 표시됩니다.
+          </p>
+        </section>
 
         {/* 제목 */}
         <section>
@@ -218,26 +273,24 @@ export default function NoticeFormPage() {
           )}
         </section>
 
-        {/* 에러 메시지 */}
         {error && (
           <p className="text-sm text-red-400 text-center">{error}</p>
         )}
       </div>
 
-      {/* Thumb-zone 저장 버튼 */}
       <div className="fixed left-0 right-0 z-20 lg:pl-60" style={{ bottom: 'var(--form-btn-bottom)' }}>
         <div className="max-w-[680px] mx-auto lg:max-w-none px-4 pb-4 pt-3
           bg-gradient-to-t from-zinc-950 via-zinc-950/95 to-transparent">
           <button
             onClick={handleSubmit}
             disabled={saving || !title.trim() || !content.trim()}
-            className="w-full py-4 rounded-2xl bg-blue-600 text-white text-base font-semibold
-              hover:bg-blue-500 active:scale-[0.98] transition-all
+            className="w-full py-4 rounded-2xl bg-amber-600 text-white text-base font-semibold
+              hover:bg-amber-500 active:scale-[0.98] transition-all
               disabled:opacity-40 disabled:cursor-not-allowed
               flex items-center justify-center gap-2"
           >
             {saving && <Loader2 size={18} className="animate-spin" />}
-            {saving ? '저장 중...' : isEdit ? '수정 완료' : '등록'}
+            {saving ? '저장 중...' : isEdit ? '수정 완료' : '공지 등록'}
           </button>
         </div>
       </div>

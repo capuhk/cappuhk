@@ -7,6 +7,7 @@ const FAB_CONFIG = {
   '/inspection':     { to: '/inspection/new',      roles: ['admin', 'manager', 'supervisor', 'maid'] },
   '/defect':         { to: '/defect/new',           roles: ['admin', 'manager', 'supervisor', 'maid'] },
   '/facility-order': { to: '/facility-order/new',   roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'] },
+  '/announcement':   { to: '/announcement/new',     roles: ['admin', 'manager', 'supervisor'] },
   '/notice':         { to: '/notice/new',           roles: ['admin', 'manager', 'supervisor'] },
   '/staff':          { to: '/settings/users/new',   roles: ['admin', 'manager', 'supervisor'] },
 }
@@ -15,7 +16,7 @@ const FAB_CONFIG = {
 const NO_FAB_PREFIXES = ['/dashboard', '/settings', '/login', '/inspection-review']
 
 // 상세 화면 판별 정규식 (/:id 패턴, /edit 제외)
-const DETAIL_RE = /^\/(inspection|defect|facility-order|notice)\/[^/]+$/
+const DETAIL_RE = /^\/(inspection|defect|facility-order|notice|announcement)\/[^/]+$/
 
 // 날짜·객실별 하위 목록 → 상위 목록 FAB 경로 매핑
 const SUB_TO_PARENT = {

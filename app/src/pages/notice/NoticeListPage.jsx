@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, Pin } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
-import useAuthStore from '../../store/useAuthStore'
 import useRefreshStore from '../../store/useRefreshStore'
 
 export default function NoticeListPage() {
   const navigate = useNavigate()
-  const { user, isManager } = useAuthStore()
   // 헤더 🔄 버튼 트리거 — 변경 시 데이터 재조회
   const refreshKey = useRefreshStore((s) => s.refreshKey)
 
@@ -22,22 +20,13 @@ export default function NoticeListPage() {
       const { data, error } = await supabase
         .from('notices')
         .select(`
-          id, title, content, is_pinned, target_roles, created_at,
+          id, title, content, created_at,
           author:users!author_id(name)
         `)
-        // 공지 상단 고정 → is_pinned DESC, 최신순
-        .order('is_pinned', { ascending: false })
+        .eq('is_pinned', false)
         .order('created_at', { ascending: false })
 
-      if (!error) {
-        // 관리자(소장/주임 포함)는 전체 조회, 그 외는 공개 대상 필터 적용
-        const filtered = isManager()
-          ? (data || [])
-          : (data || []).filter((n) =>
-              !n.target_roles?.length || n.target_roles.includes(user?.role)
-            )
-        setNotices(filtered)
-      }
+      if (!error) setNotices(data || [])
       setLoading(false)
     }
 
@@ -66,20 +55,12 @@ export default function NoticeListPage() {
           <button
             key={notice.id}
             onClick={() => navigate(`/notice/${notice.id}`)}
-            className={`w-full text-left px-4 py-4 rounded-2xl transition-all active:scale-[0.99]
-              ${notice.is_pinned
-                ? 'bg-amber-500/10 border border-amber-500/20'
-                : 'bg-white/5 hover:bg-white/8'
-              }`}
+            className="w-full text-left px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/8
+              transition-all active:scale-[0.99]"
           >
             {/* 제목 줄 */}
             <div className="flex items-start gap-2 mb-1.5">
-              {notice.is_pinned && (
-                <Pin size={13} className="text-amber-400 mt-0.5 shrink-0" />
-              )}
-              <span className={`text-sm font-semibold leading-snug ${
-                notice.is_pinned ? 'text-amber-200' : 'text-white'
-              }`}>
+              <span className="text-sm font-semibold text-white leading-snug">
                 {notice.title}
               </span>
             </div>

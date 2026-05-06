@@ -16,6 +16,9 @@ import InspectionReviewPage    from '../pages/InspectionReviewPage'
 import NoticeListPage   from '../pages/notice/NoticeListPage'
 import NoticeFormPage   from '../pages/notice/NoticeFormPage'
 import NoticeDetailPage from '../pages/notice/NoticeDetailPage'
+import AnnouncementListPage   from '../pages/announcement/AnnouncementListPage'
+import AnnouncementFormPage   from '../pages/announcement/AnnouncementFormPage'
+import AnnouncementDetailPage from '../pages/announcement/AnnouncementDetailPage'
 import StaffListPage   from '../pages/staff/StaffListPage'
 import StaffDetailPage from '../pages/staff/StaffDetailPage'
 import DashboardPage   from '../pages/DashboardPage'
@@ -91,6 +94,12 @@ function AppRouter() {
       <Route path="/facility-order/date/:date"   element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderListPage /></ProtectedRoute>} />
       <Route path="/facility-order/:id"          element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderDetailPage /></ProtectedRoute>} />
       <Route path="/facility-order/:id/edit"     element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderFormPage /></ProtectedRoute>} />
+
+      {/* 공지 — 전 역할 접근 / 작성·수정은 관리자·소장·주임만 */}
+      <Route path="/announcement"          element={<ProtectedRoute><AnnouncementListPage /></ProtectedRoute>} />
+      <Route path="/announcement/new"      element={<ProtectedRoute excludeRoles={['maid','facility','houseman','front']}><AnnouncementFormPage /></ProtectedRoute>} />
+      <Route path="/announcement/:id"      element={<ProtectedRoute><AnnouncementDetailPage /></ProtectedRoute>} />
+      <Route path="/announcement/:id/edit" element={<ProtectedRoute excludeRoles={['maid','facility','houseman','front']}><AnnouncementFormPage /></ProtectedRoute>} />
 
       {/* 사이드메뉴 */}
       <Route path="/inspection-review"    element={<ProtectedRoute><InspectionReviewPage /></ProtectedRoute>} />

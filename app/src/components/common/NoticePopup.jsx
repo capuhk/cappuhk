@@ -14,7 +14,7 @@ import useAuthStore from '../../store/useAuthStore'
 // ─────────────────────────────────────────────
 
 export default function NoticePopup() {
-  const { user, isManager } = useAuthStore()
+  const { user } = useAuthStore()
   const navigate = useNavigate()
 
   // 미확인 공지 목록 — 순차적으로 하나씩 표시
@@ -39,9 +39,9 @@ export default function NoticePopup() {
 
     if (!notices?.length) return
 
-    // 역할 필터링
+    // target_roles 기반 필터링 — 전 역할 동일하게 적용 (관리자 예외 없음)
     const filtered = notices.filter((n) =>
-      isManager() || !n.target_roles?.length || n.target_roles.includes(user.role)
+      !n.target_roles?.length || n.target_roles.includes(user.role)
     )
     if (!filtered.length) return
 
@@ -92,7 +92,7 @@ export default function NoticePopup() {
   // ── 상세 보기 이동 ────────────────────────────
   const handleDetail = async () => {
     await handleConfirm()
-    navigate(`/notice/${current.id}`)
+    navigate(`/announcement/${current.id}`)
   }
 
   if (!current) return null
