@@ -4,6 +4,7 @@ import { Loader2, Trash2, ImageOff, X, ZoomIn, Send } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
+import useRefreshStore from '../../store/useRefreshStore'
 import { getSignedUrls } from '../../utils/imageUpload'
 import { sendPush } from '../../utils/sendPush'
 import { getMasterData, CACHE_KEYS } from '../../utils/masterCache'
@@ -21,6 +22,8 @@ export default function FacilityOrderDetailPage() {
   const { id }   = useParams()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  // 헤더 🔄 버튼 트리거 — 변경 시 리마크 재조회
+  const refreshKey = useRefreshStore((s) => s.refreshKey)
 
   const [record, setRecord]           = useState(null)
   const [imgUrls, setImgUrls]         = useState([])
@@ -107,29 +110,7 @@ export default function FacilityOrderDetailPage() {
   useEffect(() => {
     fetchData()
     fetchRemarks()
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── 리마크 Realtime 구독 ──────────────────────
-  useEffect(() => {
-    const channel = supabase
-      .channel(`remarks-${id}`)
-      .on('postgres_changes', {
-        event:  '*',
-        schema: 'public',
-        table:  'facility_order_remarks',
-        filter: `facility_order_id=eq.${id}`,
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          // 본인 전송은 낙관적 업데이트로 이미 반영됨 — 타인 리마크만 재조회
-          if (payload.new?.author_id !== user?.id) fetchRemarks()
-        } else if (payload.eventType === 'DELETE') {
-          setRemarks((prev) => prev.filter((r) => r.id !== payload.old.id))
-        }
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 새 리마크 추가 시 스크롤 하단 이동 ────────
   useEffect(() => {
