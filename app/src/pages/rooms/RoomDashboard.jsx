@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Search, RefreshCw, Loader2, Hotel, CalendarDays, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import dayjs from 'dayjs'
@@ -18,15 +18,20 @@ const STATUS_CONFIG = {
 }
 
 // ─────────────────────────────────────────────
-// useRooms — 30초 폴링으로 객실 데이터 갱신
-// Realtime 제거: 20명 동시접속 시 WAL 슬롯 과부하 방지
+// useRooms — 초기 전체 로드 + 30초 delta 폴링
+// - 최초 1회: 전체 조회
+// - 이후 30초마다: updated_at > 마지막조회시각 인 방만 조회
+// - 트리거가 실제 변경 시에만 updated_at 갱신 → 대부분 0건 반환
 // ─────────────────────────────────────────────
 function useRooms() {
   const [rooms, setRooms]             = useState([])
   const [loading, setLoading]         = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const lastFetchRef = useRef(null)  // 마지막 조회 시각 기준선
 
-  const fetchRooms = async () => {
+  // 전체 조회 — 초기 1회 + 수동 새로고침
+  const fetchAllRooms = async () => {
+    const fetchTime = new Date().toISOString()
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -37,6 +42,7 @@ function useRooms() {
       if (error) throw error
       setRooms(data || [])
       setLastUpdated(new Date())
+      lastFetchRef.current = fetchTime
     } catch (err) {
       console.error('객실 데이터 조회 실패:', err)
     } finally {
@@ -44,15 +50,43 @@ function useRooms() {
     }
   }
 
-  useEffect(() => {
-    fetchRooms()
+  // delta 조회 — 변경된 방만 병합
+  const fetchChangedRooms = async () => {
+    if (!lastFetchRef.current) return
+    const since = lastFetchRef.current
+    lastFetchRef.current = new Date().toISOString()
 
-    // 30초 폴링 — 스크래퍼 5분 주기 대비 충분한 반응 속도
-    const timer = setInterval(fetchRooms, 30000)
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .gt('updated_at', since)
+
+      if (error) throw error
+      if (!data || data.length === 0) return  // 변경 없음 → 0KB
+
+      setRooms((prev) => {
+        const next = [...prev]
+        for (const changed of data) {
+          const idx = next.findIndex((r) => r.room_no === changed.room_no)
+          if (idx >= 0) next[idx] = changed
+          else next.push(changed)
+        }
+        return next.sort((a, b) => a.room_no.localeCompare(b.room_no))
+      })
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error('객실 변경분 조회 실패:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchAllRooms()
+    const timer = setInterval(fetchChangedRooms, 30000)
     return () => clearInterval(timer)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { rooms, loading, lastUpdated, refetch: fetchRooms }
+  return { rooms, loading, lastUpdated, refetch: fetchAllRooms }
 }
 
 // ─────────────────────────────────────────────
