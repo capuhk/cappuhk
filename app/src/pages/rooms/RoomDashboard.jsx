@@ -18,7 +18,8 @@ const STATUS_CONFIG = {
 }
 
 // ─────────────────────────────────────────────
-// useRooms — Supabase Realtime 구독 + 초기 로드
+// useRooms — 30초 폴링으로 객실 데이터 갱신
+// Realtime 제거: 20명 동시접속 시 WAL 슬롯 과부하 방지
 // ─────────────────────────────────────────────
 function useRooms() {
   const [rooms, setRooms]             = useState([])
@@ -46,31 +47,10 @@ function useRooms() {
   useEffect(() => {
     fetchRooms()
 
-    // Realtime 구독 — 스크래퍼 upsert 시 자동 갱신
-    const channel = supabase
-      .channel('rooms-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'rooms' },
-        (payload) => {
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            setRooms((prev) => {
-              const idx = prev.findIndex((r) => r.room_no === payload.new.room_no)
-              if (idx >= 0) {
-                const next = [...prev]
-                next[idx] = payload.new
-                return next
-              }
-              return [...prev, payload.new].sort((a, b) => a.room_no.localeCompare(b.room_no))
-            })
-            setLastUpdated(new Date())
-          }
-        },
-      )
-      .subscribe()
-
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+    // 30초 폴링 — 스크래퍼 5분 주기 대비 충분한 반응 속도
+    const timer = setInterval(fetchRooms, 30000)
+    return () => clearInterval(timer)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { rooms, loading, lastUpdated, refetch: fetchRooms }
 }
