@@ -85,19 +85,19 @@ function AppRouter() {
       <Route path="/inspection/:id/edit"   element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><InspectionFormPage /></ProtectedRoute>} />
 
       {/* 객실하자 — 메이드 접근 불가 */}
-      <Route path="/defect"               element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><DefectListPage /></ProtectedRoute>} />
-      <Route path="/defect/new"           element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><DefectFormPage /></ProtectedRoute>} />
+      <Route path="/defect"               element={<ProtectedRoute excludeRoles={['maid']}><DefectListPage /></ProtectedRoute>} />
+      <Route path="/defect/new"           element={<ProtectedRoute excludeRoles={['maid']}><DefectFormPage /></ProtectedRoute>} />
       <Route path="/defect/settings"      element={<Navigate to="/settings" replace />} />
-      <Route path="/defect/:id"           element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><DefectDetailPage /></ProtectedRoute>} />
-      <Route path="/defect/:id/edit"      element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><DefectFormPage /></ProtectedRoute>} />
+      <Route path="/defect/:id"           element={<ProtectedRoute excludeRoles={['maid']}><DefectDetailPage /></ProtectedRoute>} />
+      <Route path="/defect/:id/edit"      element={<ProtectedRoute excludeRoles={['maid']}><DefectFormPage /></ProtectedRoute>} />
 
       {/* 시설오더 — 메이드 접근 불가 */}
-      <Route path="/facility-order"              element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><FacilityOrderListPage /></ProtectedRoute>} />
-      <Route path="/facility-order/new"          element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><FacilityOrderFormPage /></ProtectedRoute>} />
+      <Route path="/facility-order"              element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderListPage /></ProtectedRoute>} />
+      <Route path="/facility-order/new"          element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderFormPage /></ProtectedRoute>} />
       <Route path="/facility-order/settings"     element={<Navigate to="/settings" replace />} />
-      <Route path="/facility-order/date/:date"   element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><FacilityOrderListPage /></ProtectedRoute>} />
-      <Route path="/facility-order/:id"          element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><FacilityOrderDetailPage /></ProtectedRoute>} />
-      <Route path="/facility-order/:id/edit"     element={<ProtectedRoute excludeRoles={['maid', 'facility', 'houseman', 'front']}><FacilityOrderFormPage /></ProtectedRoute>} />
+      <Route path="/facility-order/date/:date"   element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderListPage /></ProtectedRoute>} />
+      <Route path="/facility-order/:id"          element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderDetailPage /></ProtectedRoute>} />
+      <Route path="/facility-order/:id/edit"     element={<ProtectedRoute excludeRoles={['maid']}><FacilityOrderFormPage /></ProtectedRoute>} />
 
       {/* 공지 — 전 역할 접근 / 작성·수정은 관리자·소장·주임만 */}
       <Route path="/announcement"          element={<ProtectedRoute><AnnouncementListPage /></ProtectedRoute>} />
