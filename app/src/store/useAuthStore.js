@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
 import { clearAllCache, getMasterData, CACHE_KEYS } from '../utils/masterCache'
+import { isManager as checkManager } from '../utils/permissions'
 import useNotificationStore from './useNotificationStore'
 
 // localStorage 키: 재진입 시 아이디 자동완성
@@ -19,6 +20,21 @@ const useAuthStore = create((set, get) => ({
   error: null,            // 로그인 에러 메시지
   noticeReadRoles:  null,  // 게시판 읽기 허용 역할 (null = 아직 로드 안 됨)
   noticeWriteRoles: null,  // 게시판 쓰기 허용 역할 (null = 아직 로드 안 됨)
+
+  // ─────────────────────────────────────────────
+  // 게시판 읽기·쓰기 정책 로드 (내부 헬퍼)
+  // init()과 login() 양쪽에서 동일한 로직 사용 → 중복 제거
+  // ─────────────────────────────────────────────
+  _loadPolicies: () => {
+    getMasterData(CACHE_KEYS.appPolicies)
+      .then((policies) => {
+        const readFound  = (policies || []).find((p) => p.key === 'notice_read_roles')
+        const writeFound = (policies || []).find((p) => p.key === 'notice_write_roles')
+        try { set({ noticeReadRoles:  JSON.parse(readFound?.value  || '[]') }) } catch { set({ noticeReadRoles:  [] }) }
+        try { set({ noticeWriteRoles: JSON.parse(writeFound?.value || '[]') }) } catch { set({ noticeWriteRoles: [] }) }
+      })
+      .catch(() => set({ noticeReadRoles: [], noticeWriteRoles: [] }))
+  },
 
   // ─────────────────────────────────────────────
   // 앱 시작 시 호출 — 기존 세션 복원 + 세션 변경 구독
@@ -80,12 +96,7 @@ const useAuthStore = create((set, get) => ({
             if (profile) set({ user: profile })
           })
           // 게시판 읽기·쓰기 허용 역할 — masterCache 활용 (24h 캐시)
-          getMasterData(CACHE_KEYS.appPolicies).then((policies) => {
-            const readFound  = (policies || []).find((p) => p.key === 'notice_read_roles')
-            const writeFound = (policies || []).find((p) => p.key === 'notice_write_roles')
-            try { set({ noticeReadRoles:  JSON.parse(readFound?.value  || '[]') }) } catch { set({ noticeReadRoles:  [] }) }
-            try { set({ noticeWriteRoles: JSON.parse(writeFound?.value || '[]') }) } catch { set({ noticeWriteRoles: [] }) }
-          }).catch(() => set({ noticeReadRoles: [], noticeWriteRoles: [] }))
+          get()._loadPolicies()
         }
       })
       .catch(() => {
@@ -182,12 +193,7 @@ const useAuthStore = create((set, get) => ({
     set({ session: data.session, user: profile, error: null })
 
     // 게시판 읽기·쓰기 정책 로드 (로그인 직후 SideMenu/Router/FAB에서 즉시 사용)
-    getMasterData(CACHE_KEYS.appPolicies).then((policies) => {
-      const readFound  = (policies || []).find((p) => p.key === 'notice_read_roles')
-      const writeFound = (policies || []).find((p) => p.key === 'notice_write_roles')
-      try { set({ noticeReadRoles:  JSON.parse(readFound?.value  || '[]') }) } catch { set({ noticeReadRoles:  [] }) }
-      try { set({ noticeWriteRoles: JSON.parse(writeFound?.value || '[]') }) } catch { set({ noticeWriteRoles: [] }) }
-    }).catch(() => set({ noticeReadRoles: [], noticeWriteRoles: [] }))
+    get()._loadPolicies()
 
     return { success: true }
   },
@@ -218,10 +224,7 @@ const useAuthStore = create((set, get) => ({
   // ─────────────────────────────────────────────
   // 권한 체크 헬퍼 (관리자·소장·주임 여부)
   // ─────────────────────────────────────────────
-  isManager: () => {
-    const role = get().user?.role
-    return role === 'admin' || role === 'manager' || role === 'supervisor'
-  },
+  isManager: () => checkManager(get().user?.role),
 
   // ─────────────────────────────────────────────
   // 내 정보 수정 후 로컬 상태 갱신

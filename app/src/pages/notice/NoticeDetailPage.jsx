@@ -4,7 +4,8 @@ import { Loader2, Trash2, ImageOff, Pin, Send } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
-import { getSignedUrls } from '../../utils/imageUpload'
+import { useImageUrls } from '../../hooks/useImageUrls'
+import useToastStore from '../../store/useToastStore'
 
 export default function NoticeDetailPage() {
   const { id }    = useParams()
@@ -12,10 +13,10 @@ export default function NoticeDetailPage() {
   const { user, isManager } = useAuthStore()
 
   const [record, setRecord]     = useState(null)
-  const [imgUrls, setImgUrls]   = useState([])
   const [comments, setComments] = useState([])
   const [loading, setLoading]   = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const imgUrls = useImageUrls(record?.notice_images, 'notices')
 
   // 댓글 입력
   const [commentText, setCommentText]   = useState('')
@@ -53,24 +54,6 @@ export default function NoticeDetailPage() {
     }
 
     setRecord(data)
-
-    // 이미지 signed URL
-    const sorted = [...(data.notice_images || [])].sort((a, b) => a.sort_order - b.sort_order)
-    const paths  = sorted.map((img) => img.thumb_path).filter(Boolean)
-
-    if (paths.length > 0) {
-      try {
-        const signed = await getSignedUrls(paths, 'notices')
-        const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
-        setImgUrls(sorted.map((img) => ({
-          thumb_path: img.thumb_path,
-          url:        img.thumb_path ? (urlMap[img.thumb_path] ?? null) : null,
-        })))
-      } catch {
-        setImgUrls(sorted.map((img) => ({ thumb_path: img.thumb_path, url: null })))
-      }
-    }
-
     setLoading(false)
   }
 
@@ -105,7 +88,7 @@ export default function NoticeDetailPage() {
     const { error } = await supabase.from('notices').delete().eq('id', id)
 
     if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
+      useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
       return
     }

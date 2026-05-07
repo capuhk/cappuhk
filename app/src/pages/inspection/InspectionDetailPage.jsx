@@ -4,8 +4,10 @@ import { Loader2, Trash2, ImageOff, X, ZoomIn } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
-import { getSignedUrls } from '../../utils/imageUpload'
 import { getMasterData, getCachedDataSync, CACHE_KEYS } from '../../utils/masterCache'
+import { useImageUrls } from '../../hooks/useImageUrls'
+import useToastStore from '../../store/useToastStore'
+import { isManager } from '../../utils/permissions'
 import { getBadgeClass } from '../../utils/statusColors'
 
 export default function InspectionDetailPage() {
@@ -17,8 +19,8 @@ export default function InspectionDetailPage() {
     () => getCachedDataSync(CACHE_KEYS.inspectionStatuses) || []
   )
   const [record, setRecord]       = useState(null)
-  const [imgUrls, setImgUrls]     = useState([])
   const [loading, setLoading]     = useState(true)
+  const imgUrls = useImageUrls(record?.inspection_images, 'inspections')
   const [deleting, setDeleting]   = useState(false)
   const [viewerIndex, setViewerIndex] = useState(null)
 
@@ -43,23 +45,6 @@ export default function InspectionDetailPage() {
         }
 
         setRecord(data)
-
-        // 이미지 signed URL 로드
-        const sorted = [...(data.inspection_images || [])].sort((a, b) => a.sort_order - b.sort_order)
-        const paths  = sorted.map((img) => img.thumb_path).filter(Boolean)
-
-        if (paths.length > 0) {
-          try {
-            const signed = await getSignedUrls(paths, 'inspections')
-            const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
-            setImgUrls(sorted.map((img) => ({
-              thumb_path: img.thumb_path,
-              url:        img.thumb_path ? (urlMap[img.thumb_path] ?? null) : null,
-            })))
-          } catch {
-            setImgUrls(sorted.map((img) => ({ thumb_path: img.thumb_path, url: null })))
-          }
-        }
       } catch (err) {
         console.error('인스펙션 상세 로드 오류:', err)
         navigate('/inspection', { replace: true })
@@ -73,10 +58,7 @@ export default function InspectionDetailPage() {
   }, [id, navigate])
 
   // ── 권한 계산 ─────────────────────────────────
-  const isManager = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'supervisor'
-  // 수정: 관리자·소장·주임 또는 작성자 본인 (FAB에서 처리)
-  // 삭제: 관리자·소장·주임만
-  const canDelete = isManager
+  const canDelete = isManager(user?.role)
 
   // ── 삭제 ─────────────────────────────────────
   const handleDelete = async () => {
@@ -100,7 +82,7 @@ export default function InspectionDetailPage() {
       .eq('id', id)
 
     if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
+      useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
       return
     }

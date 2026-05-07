@@ -1,15 +1,16 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Plus, Pencil } from 'lucide-react'
 import useAuthStore from '../../store/useAuthStore'
+import { MANAGER_ROLES, INSPECTION_ROLES, FACILITY_ORDER_ROLES } from '../../utils/permissions'
 
 // 목록 화면별 FAB 설정 (등록 버튼)
 const FAB_CONFIG = {
-  '/inspection':     { to: '/inspection/new',      roles: ['admin', 'manager', 'supervisor', 'maid'] },
-  '/defect':         { to: '/defect/new',           roles: ['admin', 'manager', 'supervisor', 'maid'] },
-  '/facility-order': { to: '/facility-order/new',   roles: ['admin', 'manager', 'supervisor', 'facility', 'houseman', 'front'] },
-  '/announcement':   { to: '/announcement/new',     roles: ['admin', 'manager', 'supervisor'] },
-  '/notice':         { to: '/notice/new',           roles: ['admin', 'manager', 'supervisor'] },
-  '/staff':          { to: '/settings/users/new',   roles: ['admin', 'manager', 'supervisor'] },
+  '/inspection':     { to: '/inspection/new',      roles: INSPECTION_ROLES },
+  '/defect':         { to: '/defect/new',           roles: INSPECTION_ROLES },
+  '/facility-order': { to: '/facility-order/new',   roles: FACILITY_ORDER_ROLES },
+  '/announcement':   { to: '/announcement/new',     roles: MANAGER_ROLES },
+  '/notice':         { to: '/notice/new',           roles: MANAGER_ROLES },
+  '/staff':          { to: '/settings/users/new',   roles: MANAGER_ROLES },
 }
 
 // FAB를 표시하지 않는 경로 접두사

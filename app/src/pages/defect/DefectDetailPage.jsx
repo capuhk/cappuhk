@@ -4,7 +4,9 @@ import { Loader2, Trash2, ImageOff, X, ZoomIn } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
-import { getSignedUrls } from '../../utils/imageUpload'
+import { useImageUrls } from '../../hooks/useImageUrls'
+import useToastStore from '../../store/useToastStore'
+import { isManager } from '../../utils/permissions'
 
 // 상태별 뱃지 색상
 const STATUS_COLOR = {
@@ -19,8 +21,8 @@ export default function DefectDetailPage() {
   const { user } = useAuthStore()
 
   const [record, setRecord]         = useState(null)
-  const [imgUrls, setImgUrls]       = useState([])
   const [loading, setLoading]       = useState(true)
+  const imgUrls = useImageUrls(record?.defect_images, 'defects')
   const [deleting, setDeleting]     = useState(false)
   const [viewerIndex, setViewerIndex] = useState(null)
 
@@ -45,22 +47,6 @@ export default function DefectDetailPage() {
         }
 
         setRecord(data)
-
-        const sorted = [...(data.defect_images || [])].sort((a, b) => a.sort_order - b.sort_order)
-        const paths  = sorted.map((img) => img.thumb_path).filter(Boolean)
-
-        if (paths.length > 0) {
-          try {
-            const signed = await getSignedUrls(paths, 'defects')
-            const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
-            setImgUrls(sorted.map((img) => ({
-              thumb_path: img.thumb_path,
-              url:        img.thumb_path ? (urlMap[img.thumb_path] ?? null) : null,
-            })))
-          } catch {
-            setImgUrls(sorted.map((img) => ({ thumb_path: img.thumb_path, url: null })))
-          }
-        }
       } catch (err) {
         console.error('객실하자 상세 로드 오류:', err)
         navigate('/defect', { replace: true })
@@ -73,8 +59,7 @@ export default function DefectDetailPage() {
   }, [id, navigate])
 
   // ── 권한 ─────────────────────────────────────
-  const isManager = ['admin', 'manager', 'supervisor'].includes(user?.role)
-  const canDelete = isManager
+  const canDelete = isManager(user?.role)
 
   // ── 삭제 ─────────────────────────────────────
   const handleDelete = async () => {
@@ -98,7 +83,7 @@ export default function DefectDetailPage() {
       .eq('id', id)
 
     if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
+      useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
       return
     }

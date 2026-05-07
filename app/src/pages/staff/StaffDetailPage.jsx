@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Loader2, Phone, Mail, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
+import useToastStore from '../../store/useToastStore'
 
 // 역할 한글 레이블
 const ROLE_LABEL = {
@@ -68,7 +69,7 @@ export default function StaffDetailPage() {
       .eq('id', id)
 
     if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
+      useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
       return
     }

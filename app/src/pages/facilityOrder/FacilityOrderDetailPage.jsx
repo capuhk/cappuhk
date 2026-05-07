@@ -5,8 +5,10 @@ import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useAuthStore from '../../store/useAuthStore'
 import useRefreshStore from '../../store/useRefreshStore'
-import { getSignedUrls } from '../../utils/imageUpload'
 import { sendPush } from '../../utils/sendPush'
+import { useImageUrls } from '../../hooks/useImageUrls'
+import useToastStore from '../../store/useToastStore'
+import { isManager, isFacilityRole } from '../../utils/permissions'
 import { getMasterData, CACHE_KEYS } from '../../utils/masterCache'
 import BottomSheet from '../../components/common/BottomSheet'
 
@@ -26,8 +28,8 @@ export default function FacilityOrderDetailPage() {
   const refreshKey = useRefreshStore((s) => s.refreshKey)
 
   const [record, setRecord]           = useState(null)
-  const [imgUrls, setImgUrls]         = useState([])
   const [loading, setLoading]         = useState(true)
+  const imgUrls = useImageUrls(record?.facility_order_images, 'facilityOrders')
   const [deleting, setDeleting]       = useState(false)
   const [accepting, setAccepting]     = useState(false)
   const [completing, setCompleting]   = useState(false)
@@ -72,22 +74,6 @@ export default function FacilityOrderDetailPage() {
       }
 
       setRecord(data)
-
-      const sorted = [...(data.facility_order_images || [])].sort((a, b) => a.sort_order - b.sort_order)
-      const paths  = sorted.map((img) => img.thumb_path).filter(Boolean)
-
-      if (paths.length > 0) {
-        try {
-          const signed = await getSignedUrls(paths, 'facilityOrders')
-          const urlMap = Object.fromEntries(signed.map((s) => [s.path, s.signedUrl]))
-          setImgUrls(sorted.map((img) => ({
-            thumb_path: img.thumb_path,
-            url:        img.thumb_path ? (urlMap[img.thumb_path] ?? null) : null,
-          })))
-        } catch {
-          setImgUrls(sorted.map((img) => ({ thumb_path: img.thumb_path, url: null })))
-        }
-      }
     } catch (err) {
       console.error('시설오더 상세 로드 오류:', err)
       navigate('/facility-order', { replace: true })
@@ -134,11 +120,11 @@ export default function FacilityOrderDetailPage() {
   }, [])
 
   // ── 관리자인 경우 이관용 마스터 데이터 로드 ───
-  const isManager  = ['admin', 'manager', 'supervisor'].includes(user?.role)
-  const isFacility = user?.role === 'facility'
+  const isManagerUser  = isManager(user?.role)
+  const isFacility     = isFacilityRole(user?.role)
 
   useEffect(() => {
-    if (!isManager) return
+    if (!isManagerUser) return
     Promise.all([
       getMasterData(CACHE_KEYS.defectDivisions),
       getMasterData(CACHE_KEYS.defectLocations),
@@ -146,14 +132,14 @@ export default function FacilityOrderDetailPage() {
       setDivisions(divs || [])
       setLocations(locs || [])
     })
-  }, [isManager]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isManagerUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 권한 ─────────────────────────────────────
-  const canChangeStatus = isManager || isFacility
-  const canDelete       = isManager
+  const canChangeStatus = isManagerUser || isFacility
+  const canDelete       = isManagerUser
 
   // 완료 권한: 관리자·소장·주임은 누구나, 그 외는 접수자 본인만
-  const canComplete = isManager || !record?.accepted_by || user?.id === record?.accepted_by
+  const canComplete = isManagerUser || !record?.accepted_by || user?.id === record?.accepted_by
 
   // 선택된 구분에 해당하는 위치 목록 필터링
   const divisionObj       = divisions.find((d) => d.name === selDivision)
@@ -170,7 +156,7 @@ export default function FacilityOrderDetailPage() {
       .eq('id', id)
 
     if (error) {
-      alert('접수 처리 중 오류가 발생했습니다.')
+      useToastStore.getState().show('접수 처리 중 오류가 발생했습니다.')
     } else {
       await supabase.from('facility_order_log').insert({
         facility_order_id: id,
@@ -193,7 +179,7 @@ export default function FacilityOrderDetailPage() {
       .eq('id', id)
 
     if (error) {
-      alert('완료 처리 중 오류가 발생했습니다.')
+      useToastStore.getState().show('완료 처리 중 오류가 발생했습니다.')
     } else {
       await supabase.from('facility_order_log').insert({
         facility_order_id: id,
@@ -285,7 +271,7 @@ export default function FacilityOrderDetailPage() {
       navigate(`/defect/${newDefectId}`, { replace: true })
     } catch (err) {
       console.error(err)
-      alert('이관 중 오류가 발생했습니다.')
+      useToastStore.getState().show('이관 중 오류가 발생했습니다.')
     } finally {
       setMoving(false)
     }
@@ -330,7 +316,7 @@ export default function FacilityOrderDetailPage() {
       .eq('id', id)
 
     if (error) {
-      alert('삭제 중 오류가 발생했습니다.')
+      useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
       return
     }
@@ -538,7 +524,7 @@ export default function FacilityOrderDetailPage() {
         )}
 
         {/* 이관 버튼 */}
-        {isManager && record.status !== '완료' && record.status !== '이관' && (
+        {isManagerUser && record.status !== '완료' && record.status !== '이관' && (
           <button
             onClick={() => {
               setSelDivision('')
@@ -609,7 +595,7 @@ export default function FacilityOrderDetailPage() {
             ) : (
               remarks.map((remark) => {
                 const isMyRemark = remark.author?.id === user?.id
-                const canDeleteRemark = isMyRemark || isManager
+                const canDeleteRemark = isMyRemark || isManagerUser
 
                 return (
                   <div

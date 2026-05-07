@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
 import { usePullToRefresh } from '../../hooks/usePullToRefresh'
 import { downloadExcel, openPrintWindow, prepareDefectExport } from '../../utils/exportUtils'
+import useToastStore from '../../store/useToastStore'
 
 // 상태별 뱃지 색상
 const STATUS_COLOR = {
@@ -181,7 +182,7 @@ export default function DefectListPage() {
       }
     } catch (err) {
       console.error('내보내기 오류:', err)
-      alert('내보내기 중 오류가 발생했습니다.')
+      useToastStore.getState().show('내보내기 중 오류가 발생했습니다.')
     } finally {
       setExporting(false)
     }
