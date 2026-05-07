@@ -1,8 +1,8 @@
 # 하우스키핑 v3 — 설계서 v3 무료버전
 
 > **작성일**: 2026-03-26
-> **최종 업데이트**: 2026-04-28 (오더 리마크 채팅 UI + 접수자 표시 + 완료 권한 제한)
-> **버전**: v4.9 (v4.8 + 오더 리마크 + 접수자 완료권한)
+> **최종 업데이트**: 2026-05-07 (공지 페이지 분리 + 사진 보존정책 30일 통일 + 리마크 Realtime 제거)
+> **버전**: v4.12 (v4.11 + 공지/게시판 분리 + 보존정책 + Realtime 최적화)
 > **플랫폼**: PWA (iOS Safari + Android Chrome + PC 웹)  
 > **백엔드**: Supabase Free Plan (PostgreSQL + Storage + Auth)
 
@@ -523,9 +523,9 @@ Supabase Storage (무료 1GB)
 
 | 구분 | 버킷 | 해상도 | 품질 | 최대장수 | 보관기간 | 삭제방식 |
 |------|------|:------:|:----:|:-------:|:-------:|---------|
-| 인스펙션 | thumb-inspections | **1400px** | 70% | 5장 | **20일** | Cron 자동 |
+| 인스펙션 | thumb-inspections | **1400px** | 70% | 5장 | **30일** | Cron 자동 |
 | 객실하자 | thumb-defects | **800px** | 70% | 5장 | **영구** | 수동(관리자) |
-| 시설오더 | thumb-facility-orders | **300px** | 70% | 5장 | **60일** | Cron 자동 |
+| 시설오더 | thumb-facility-orders | **300px** | 70% | 5장 | **30일** | Cron 자동 |
 | 게시판 | thumb-notices | **300px** | 70% | 3장 | 글 삭제 시 | CASCADE |
 
 ### 10.4 해상도별 선택 근거
@@ -571,17 +571,40 @@ Supabase Storage (무료 1GB)
 → Edge Function 'auto-delete-images' 호출
 
 [Edge Function 처리 순서]
-1. inspection_images WHERE created_at < NOW() - 20일 AND thumb_path IS NOT NULL 조회
+1. inspection_images WHERE created_at < NOW() - 30일 AND thumb_path IS NOT NULL 조회
 2. thumb-inspections 버킷에서 해당 파일 batch 삭제
 3. inspection_images.thumb_path = NULL 로 업데이트 (레코드 유지)
 
-4. facility_order_images WHERE created_at < NOW() - 60일 AND thumb_path IS NOT NULL 조회
+4. facility_order_images WHERE created_at < NOW() - 30일 AND thumb_path IS NOT NULL 조회
 5. thumb-facility-orders 버킷에서 해당 파일 batch 삭제
 6. facility_order_images.thumb_path = NULL 로 업데이트 (레코드 유지)
 ```
 
 **만료 이미지 화면 처리**
 - `thumb_path = NULL` 인 경우 이미지 영역에 "이미지가 만료되었습니다" 플레이스홀더 표시
+
+**크론 설정 시 주의사항 (최초 1회)**
+- Supabase Dashboard → Database → Extensions에서 `pg_cron`, `pg_net` 활성화 필요
+- `cron.sql` 실행 시 Vault 대신 Project URL·Service Role Key 직접 기입 방식 사용 (Vault 미설정 시 크론 무음 실패)
+- Edge Function 배포: `supabase functions deploy auto-delete-images`
+
+### 10.8 Realtime 사용 주의사항
+
+> ⚠️ **Free Plan에서 postgres_changes Realtime 구독은 WAL 슬롯을 점유하여 CPU 리소스를 지속 소모**
+
+| 구독 방식 | 비용 | 비고 |
+|----------|:----:|------|
+| `postgres_changes` | 높음 | WAL 복제 슬롯 사용, 연결 중 CPU 지속 소모 |
+| Broadcast | 낮음 | WAL 미사용, 클라이언트 간 직접 전달 |
+| 폴링 (setInterval) | 중간 | 주기적 쿼리, WAL 미사용 |
+
+**시설오더 리마크 Realtime 제거 이력 (v4.12)**
+- 기존: `postgres_changes` 구독으로 타인 리마크 실시간 수신
+- 문제: 오더 상세 진입 시마다 WAL 슬롯 점유 → Supabase 리소스 경고 발생
+- 변경: Realtime 제거 → 헤더 🔄 버튼(refreshKey) 으로 수동 재조회
+- 본인 전송 리마크는 낙관적 업데이트로 즉시 반영 유지
+
+> 향후 실시간 리마크가 필요하면 `postgres_changes` 대신 **Broadcast 채널** 방식으로 구현할 것
 
 ### 10.8 업로드 UI (공통)
 
@@ -2235,3 +2258,4 @@ $$ LANGUAGE SQL STABLE;
 | v4.9 | 2026-04-28 | 오더 리마크 채팅 UI + 접수자 표시 + 완료 권한 제한 — [1] migration_v21: facility_orders.accepted_by 컬럼 + facility_order_remarks 테이블(Realtime+RLS) [2] 상세 페이지: 채팅형 리마크 섹션(본인 오른쪽·타인 왼쪽 말풍선, Realtime 구독, 삭제 가능) [3] 상세 페이지: 접수자 표시(파란색), 완료 버튼 권한 체크(관리자·소장·주임은 누구나, 그 외 접수자 본인만) [4] 목록 카드: 최신 리마크 2줄 미리보기(💬 아이콘) [5] 목록 카드: 하단 버튼행 균등배치(리마크·접수·완료) [6] 목록: 리마크 버튼 클릭 시 fixed 하단 입력바 표시(visualViewport 키보드 높이 감지, iOS 대응) [7] Enter=줄바꿈, 전송은 버튼으로(모바일 UX 개선) |
 | v4.10 | 2026-04-29 | 메이드 권한 차단 + 목록 RPC 교체 + WINGS 스크래퍼 개선 — [1] AppRouter: 메이드 홈 /facility-order→/rooms, 객실하자·시설오더 routes에 excludeRoles=['maid'] 추가 [2] SideMenu·BottomTabBar: 메이드 역할에서 하자·오더 탭 제거(직원목록·설정·개인설정은 유지) [3] MainLayout: MAIN_TAB_PATHS에 /rooms 추가(메이드 햄버거 표시) [4] migration_v22: get_facility_order_date_counts RPC(work_date×status×is_urgent 집계) + get_defect_room_counts RPC(room_no×status 집계) [5] FacilityOrderListPage Phase 1 RPC 교체(lightRecords→rpcSummary, Supabase 1000행 제한 우회) [6] DefectListPage Phase 1 RPC 교체(동일 방식) [7] WINGS 스크래퍼: start_v2_hidden.vbs(pythonw.exe 터미널 숨김), register_task.bat(Task Scheduler 자동 등록), 일마감 오류 페이지 감지 후 재로그인, 운영시간 분단위 설정(기본 06:30~22:30) |
 | v4.11 | 2026-04-30 | 오더 상세 리마크 입력바 개선 + 목록 당일 자동 펼침 — [1] FacilityOrderDetailPage: remarkBarOpen 토글 제거 → 리마크 입력바 항상 하단 고정(키보드 열림 시 키보드 바로 위, 닫힘 시 BottomTabBar 위) [2] kbHeight 계산 visualViewport.offsetTop 포함(Safari URL바 겹침 해결, 목록 페이지와 동일 방식) [3] FacilityOrderListPage: Phase 1 로드 후 당일 날짜 아코디언 자동 펼침 [4] 목록 리마크 딤 z-index z-40→z-[45](BottomTabBar 가림 해결) |
+| v4.12 | 2026-05-07 | 공지 페이지 분리 + 사진 보존정책 30일 통일 + 리마크 Realtime 제거 — [1] /announcement 페이지 신규(공지 전용, 전 역할 접근 가능, amber 테마) [2] AnnouncementListPage·FormPage·DetailPage 신규(is_pinned=true 레코드, target_roles 다중선택으로 팝업 권한 제어) [3] notices 테이블 재활용: is_pinned=false→게시판, is_pinned=true→공지 [4] NoticeFormPage: is_pinned 토글·target_roles 제거(게시판 전용, is_pinned=false 고정) [5] NoticeListPage: is_pinned=false 필터 추가 [6] NoticePopup: navigate 대상 /notice→/announcement 변경, isManager 필터 제거(target_roles만으로 권한 제어) [7] FAB·AppRouter·SideMenu: /announcement 경로 추가 [8] 사진 보존정책 30일 통일(인스펙션 20일→30일, 오더 60일→30일, app_policies 직접 수정) [9] 자동삭제 크론 최초 설정 완료(pg_cron+pg_net 활성화, cron.sql 실행, Edge Function 수동 실행으로 638건 삭제 확인) [10] FacilityOrderDetailPage: 리마크 postgres_changes Realtime 구독 제거 → refreshKey(헤더 🔄) 트리거로 교체(WAL 슬롯 점유로 Free Plan 리소스 경고 발생 해결) |

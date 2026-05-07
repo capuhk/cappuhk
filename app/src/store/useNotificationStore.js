@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase'
 // 설계 원칙:
 //   - 뱃지 카운트는 항상 DB 기준 (localStorage 사용 안 함)
 //   - React는 표시만, FCM은 알림만
-//   - Supabase Realtime으로 새 오더/공지 즉시 감지 → 뱃지 자동 갱신
+//   - Realtime 제거(WAL 리소스 과다) → 앱 진입/visibilitychange 시 재조회
 //
 // 읽음 기준:
 //   - users.notif_last_read_at — 마지막으로 드로어를 닫은 시각
@@ -31,12 +31,10 @@ const useNotificationStore = create((set, get) => ({
   drawerOpen:  false,
   loading:     false,
   lastReadAt:  null,  // 드로어 열릴 때 스냅샷 — 읽음 기준선
-  _channel:    null,  // Realtime 채널 ref
 
-  // ── 앱 마운트 시 초기화 — 뱃지 카운트 + Realtime 구독 ──
+  // ── 앱 마운트 시 초기화 — 뱃지 카운트 조회 ──
   init: async (userId, isManager, userRole) => {
     await get()._refreshBadge(userId, isManager, userRole)
-    get()._subscribeRealtime(userId, isManager, userRole)
   },
 
   // ── DB에서 뱃지 카운트 재조회 ──────────────────
@@ -94,48 +92,6 @@ const useNotificationStore = create((set, get) => ({
 
     setNativeBadge(count)
     set({ unreadCount: count })
-  },
-
-  // ── Supabase Realtime 구독 ─────────────────────
-  // 새 오더/공지 INSERT 감지 → 뱃지 즉시 갱신
-  _subscribeRealtime: (userId, isManager, userRole) => {
-    // 기존 채널 정리 후 재구독
-    const existing = get()._channel
-    if (existing) supabase.removeChannel(existing)
-
-    const channel = supabase
-      .channel('notif-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'facility_orders' },
-        () => {
-          // 새 오더 등록 → 뱃지 재조회
-          get()._refreshBadge(userId, isManager, userRole)
-        },
-      )
-      .on(
-        'postgres_changes',
-        // 완료 처리는 UPDATE 이벤트 — 뱃지 재조회
-        { event: 'UPDATE', schema: 'public', table: 'facility_orders' },
-        (payload) => {
-          if (payload.new?.status === '완료') {
-            get()._refreshBadge(userId, isManager, userRole)
-          }
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notices' },
-        (payload) => {
-          // 공지(is_pinned=true)만 뱃지 갱신
-          if (payload.new?.is_pinned) {
-            get()._refreshBadge(userId, isManager, userRole)
-          }
-        },
-      )
-      .subscribe()
-
-    set({ _channel: channel })
   },
 
   // ── 드로어 열기 ───────────────────────────────
@@ -281,9 +237,7 @@ const useNotificationStore = create((set, get) => ({
 
   // ── 로그아웃 시 정리 ─────────────────────────
   reset: () => {
-    const ch = get()._channel
-    if (ch) supabase.removeChannel(ch)
-    set({ items: [], unreadCount: 0, drawerOpen: false, loading: false, lastReadAt: null, _channel: null })
+    set({ items: [], unreadCount: 0, drawerOpen: false, loading: false, lastReadAt: null })
   },
 }))
 
