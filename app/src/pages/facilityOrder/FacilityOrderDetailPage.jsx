@@ -31,8 +31,10 @@ export default function FacilityOrderDetailPage() {
   const [loading, setLoading]         = useState(true)
   const imgUrls = useImageUrls(record?.facility_order_images, 'facilityOrders')
   const [deleting, setDeleting]       = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [accepting, setAccepting]     = useState(false)
   const [completing, setCompleting]   = useState(false)
+  const [confirmComplete, setConfirmComplete] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(null)
 
   // ── 이관 관련 상태 ────────────────────────────
@@ -43,6 +45,8 @@ export default function FacilityOrderDetailPage() {
   const [selLocation, setSelLocation]         = useState('')
   const [divisionSheetOpen, setDivisionSheetOpen] = useState(false)
   const [locationSheetOpen, setLocationSheetOpen] = useState(false)
+  const [confirmMoveOpen, setConfirmMoveOpen] = useState(false)
+  const [pendingMove, setPendingMove]         = useState(null)
 
   // ── 리마크 상태 ───────────────────────────────
   const [remarks, setRemarks]         = useState([])
@@ -171,7 +175,6 @@ export default function FacilityOrderDetailPage() {
 
   // ── 완료 처리 (처리중 → 완료) ─────────────────
   const handleComplete = async () => {
-    if (!window.confirm('오더를 완료 처리하시겠습니까?')) return
     setCompleting(true)
     const { error } = await supabase
       .from('facility_orders')
@@ -289,25 +292,27 @@ export default function FacilityOrderDetailPage() {
   const handleLocationSelect = (locName) => {
     setSelLocation(locName)
     setLocationSheetOpen(false)
+    // BottomSheet 닫힘 애니메이션 후 이관 확인 시트 표시
     setTimeout(() => {
-      if (window.confirm(`${selDivision} — ${locName}\n위 위치로 객실하자 이관하시겠습니까?`)) {
-        executeMove(selDivision, locName)
-      }
+      setPendingMove({ division: selDivision, location: locName })
+      setConfirmMoveOpen(true)
     }, 300)
   }
 
   // ── 삭제 ─────────────────────────────────────
   const handleDelete = async () => {
-    if (!window.confirm('이 오더를 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return
-
     setDeleting(true)
 
     const paths = (record.facility_order_images || [])
       .map((img) => img.thumb_path)
       .filter(Boolean)
 
+    // Storage 이미지 먼저 삭제 — 실패해도 DB 삭제는 계속 진행 (자동 정리 예정)
     if (paths.length > 0) {
-      await supabase.storage.from('thumb-facility-orders').remove(paths)
+      const { error: storageError } = await supabase.storage.from('thumb-facility-orders').remove(paths)
+      if (storageError) {
+        useToastStore.getState().show('이미지 삭제 실패 — 자동 정리 예정')
+      }
     }
 
     const { error } = await supabase
@@ -318,6 +323,7 @@ export default function FacilityOrderDetailPage() {
     if (error) {
       useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
+      setConfirmDelete(false)
       return
     }
 
@@ -501,16 +507,37 @@ export default function FacilityOrderDetailPage() {
             {/* 처리중 → 완료 (권한 있는 경우만) */}
             {record.status === '처리중' && (
               canComplete ? (
-                <button
-                  onClick={handleComplete}
-                  disabled={completing}
-                  className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-semibold
-                    hover:bg-emerald-500 active:scale-[0.98] transition-all
-                    flex items-center justify-center gap-2 disabled:opacity-40"
-                >
-                  {completing && <Loader2 size={16} className="animate-spin" />}
-                  {completing ? '처리 중...' : '완료'}
-                </button>
+                confirmComplete ? (
+                  <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20 space-y-3">
+                    <p className="text-sm text-emerald-300 text-center">오더를 완료 처리하시겠습니까?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setConfirmComplete(false)}
+                        disabled={completing}
+                        className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 text-sm disabled:opacity-40"
+                      >취소</button>
+                      <button
+                        onClick={() => { setConfirmComplete(false); handleComplete() }}
+                        disabled={completing}
+                        className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold
+                          disabled:opacity-40 flex items-center justify-center gap-2"
+                      >
+                        {completing && <Loader2 size={14} className="animate-spin" />}
+                        {completing ? '처리 중...' : '완료'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmComplete(true)}
+                    disabled={completing}
+                    className="w-full py-3.5 rounded-xl bg-emerald-600 text-white font-semibold
+                      hover:bg-emerald-500 active:scale-[0.98] transition-all
+                      flex items-center justify-center gap-2 disabled:opacity-40"
+                  >
+                    완료
+                  </button>
+                )
               ) : (
                 // 완료 권한 없음 — 접수자 안내
                 <div className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-center">
@@ -647,20 +674,39 @@ export default function FacilityOrderDetailPage() {
 
         {/* 삭제 버튼 */}
         {canDelete && (
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="w-full mt-4 py-3 rounded-xl border border-red-500/30 text-red-400
-              hover:bg-red-500/10 active:scale-[0.98] transition-all
-              flex items-center justify-center gap-2 text-sm font-medium
-              disabled:opacity-40"
-          >
-            {deleting
-              ? <Loader2 size={16} className="animate-spin" />
-              : <Trash2 size={16} />
-            }
-            {deleting ? '삭제 중...' : '오더 삭제'}
-          </button>
+          confirmDelete ? (
+            <div className="mt-4 p-4 bg-red-500/10 rounded-xl border border-red-500/20 space-y-3">
+              <p className="text-sm text-red-300 text-center">
+                오더를 삭제하시겠습니까?<br />이미지도 함께 삭제됩니다.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 text-sm disabled:opacity-40"
+                >취소</button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold
+                    disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {deleting && <Loader2 size={14} className="animate-spin" />}
+                  {deleting ? '삭제 중...' : '삭제'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="w-full mt-4 py-3 rounded-xl border border-red-500/30 text-red-400
+                hover:bg-red-500/10 active:scale-[0.98] transition-all
+                flex items-center justify-center gap-2 text-sm font-medium"
+            >
+              <Trash2 size={16} />
+              오더 삭제
+            </button>
+          )
         )}
       </div>
 
@@ -707,6 +753,35 @@ export default function FacilityOrderDetailPage() {
           {filteredLocations.length === 0 && (
             <p className="text-center text-sm text-white/30 py-6">위치 데이터가 없습니다</p>
           )}
+        </div>
+      </BottomSheet>
+
+      {/* 이관 확인 BottomSheet */}
+      <BottomSheet
+        open={confirmMoveOpen}
+        onClose={() => { setConfirmMoveOpen(false); setPendingMove(null) }}
+        title="이관 확인"
+      >
+        <div className="px-4 py-4 space-y-4">
+          <p className="text-sm text-white/70 leading-relaxed">
+            <span className="text-white font-semibold">{pendingMove?.division} — {pendingMove?.location}</span>
+            <br />위 위치로 객실하자 이관하시겠습니까?
+          </p>
+          <div className="flex gap-2 pb-2">
+            <button
+              onClick={() => { setConfirmMoveOpen(false); setPendingMove(null) }}
+              className="flex-1 py-3 rounded-xl border border-white/20 text-white/60 text-sm"
+            >취소</button>
+            <button
+              onClick={() => {
+                const move = pendingMove
+                setConfirmMoveOpen(false)
+                setPendingMove(null)
+                if (move) executeMove(move.division, move.location)
+              }}
+              className="flex-1 py-3 rounded-xl bg-purple-600 text-white text-sm font-semibold"
+            >이관</button>
+          </div>
         </div>
       </BottomSheet>
 

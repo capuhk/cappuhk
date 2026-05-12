@@ -24,6 +24,7 @@ export default function DefectDetailPage() {
   const [loading, setLoading]       = useState(true)
   const imgUrls = useImageUrls(record?.defect_images, 'defects')
   const [deleting, setDeleting]     = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(null)
 
   // ── 데이터 로드 ───────────────────────────────
@@ -63,17 +64,18 @@ export default function DefectDetailPage() {
 
   // ── 삭제 ─────────────────────────────────────
   const handleDelete = async () => {
-    if (!window.confirm('이 하자 기록을 삭제하시겠습니까?\n이미지도 함께 삭제됩니다.')) return
-
     setDeleting(true)
 
-    // Storage 이미지 먼저 삭제 (영구보관이지만 레코드 삭제 시 같이 제거)
+    // Storage 이미지 먼저 삭제 — 실패해도 DB 삭제는 계속 진행 (자동 정리 예정)
     const paths = (record.defect_images || [])
       .map((img) => img.thumb_path)
       .filter(Boolean)
 
     if (paths.length > 0) {
-      await supabase.storage.from('thumb-defects').remove(paths)
+      const { error: storageError } = await supabase.storage.from('thumb-defects').remove(paths)
+      if (storageError) {
+        useToastStore.getState().show('이미지 삭제 실패 — 자동 정리 예정')
+      }
     }
 
     // DB 레코드 삭제 (defect_images는 CASCADE로 자동 삭제)
@@ -85,6 +87,7 @@ export default function DefectDetailPage() {
     if (error) {
       useToastStore.getState().show('삭제 중 오류가 발생했습니다.')
       setDeleting(false)
+      setConfirmDelete(false)
       return
     }
 
@@ -264,20 +267,39 @@ export default function DefectDetailPage() {
 
         {/* 삭제 버튼 — 관리자·소장·주임만 표시 */}
         {canDelete && (
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="w-full mt-4 py-3 rounded-xl border border-red-500/30 text-red-400
-              hover:bg-red-500/10 active:scale-[0.98] transition-all
-              flex items-center justify-center gap-2 text-sm font-medium
-              disabled:opacity-40"
-          >
-            {deleting
-              ? <Loader2 size={16} className="animate-spin" />
-              : <Trash2 size={16} />
-            }
-            {deleting ? '삭제 중...' : '하자 삭제'}
-          </button>
+          confirmDelete ? (
+            <div className="mt-4 p-4 bg-red-500/10 rounded-xl border border-red-500/20 space-y-3">
+              <p className="text-sm text-red-300 text-center">
+                하자 기록을 삭제하시겠습니까?<br />이미지도 함께 삭제됩니다.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 text-sm disabled:opacity-40"
+                >취소</button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold
+                    disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {deleting && <Loader2 size={14} className="animate-spin" />}
+                  {deleting ? '삭제 중...' : '삭제'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="w-full mt-4 py-3 rounded-xl border border-red-500/30 text-red-400
+                hover:bg-red-500/10 active:scale-[0.98] transition-all
+                flex items-center justify-center gap-2 text-sm font-medium"
+            >
+              <Trash2 size={16} />
+              하자 삭제
+            </button>
+          )
         )}
       </div>
     </div>

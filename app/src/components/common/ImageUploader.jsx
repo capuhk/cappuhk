@@ -77,29 +77,25 @@ export default function ImageUploader({ type, value = [], onChange, cameraOnly =
       uploading:  true,
     }))
 
+    // 비동기 루프 전 시작 인덱스 캡처 (stale closure 방지)
+    const startIdx = items.length
     setItems((prev) => [...prev, ...placeholders])
     e.target.value = ''
 
     for (let i = 0; i < toUpload.length; i++) {
       const file    = toUpload[i]
       const blobUrl = URL.createObjectURL(file)
-      const idx     = items.length + i
+      const idx     = startIdx + i
 
       try {
         const path = await uploadImage(file, type)
 
+        // 완료 반영 + onChange 호출을 단일 setItems로 처리 (double setItems 제거)
         setItems((prev) => {
           const next = [...prev]
           next[idx] = { thumb_path: path, url: blobUrl, uploading: false }
+          onChange(next.filter((it) => !it.uploading && it.thumb_path).map((it) => it.thumb_path))
           return next
-        })
-
-        setItems((prev) => {
-          const paths = prev
-            .filter((it) => !it.uploading && it.thumb_path)
-            .map((it) => it.thumb_path)
-          onChange(paths)
-          return prev
         })
       } catch {
         setItems((prev) => prev.filter((_, i2) => i2 !== idx))
