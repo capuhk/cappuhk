@@ -26,7 +26,7 @@ export default function DefectListPage() {
   const { refreshKey, triggerRefresh } = useRefreshStore()
   const { pullDistance, refreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
 
-  const [dateFrom, setDateFrom] = useState(() => dayjs().subtract(30, 'day').format('YYYY-MM-DD'))
+  const [dateFrom, setDateFrom] = useState('2026-04-01')
   const [dateTo,   setDateTo]   = useState(() => dayjs().format('YYYY-MM-DD'))
   const [dateOpen, setDateOpen] = useState(false)
 
