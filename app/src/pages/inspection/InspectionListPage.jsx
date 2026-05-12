@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, X } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ChevronRight, CalendarDays, CheckCircle, Loader2, X } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../../utils/masterCache'
@@ -26,6 +26,13 @@ export default function InspectionListPage() {
   const [loadingDate,   setLoadingDate]   = useState(null)
   const [initialLoading, setInitialLoading] = useState(true)
 
+  // ── 아코디언 열림 상태 (날짜 / 월 / 연도) ──────────
+  const [openDates,  setOpenDates]  = useState(new Set())
+  const [openMonths, setOpenMonths] = useState(new Set())
+  const [openYears,  setOpenYears]  = useState(new Set())
+
+  const [processingId, setProcessingId] = useState(null)
+
   // ── 검색 모드 ─────────────────────────────────
   const [search,        setSearch]        = useState('')
   const [searchRecords, setSearchRecords] = useState([])
@@ -34,9 +41,6 @@ export default function InspectionListPage() {
 
   const isSearchMode = search.trim().length > 0
 
-  const [openDates,    setOpenDates]    = useState(new Set())
-  const [processingId, setProcessingId] = useState(null)
-
   // ── Phase 1: 날짜+건수 초기 로드 (work_date 컬럼만) ──
   useEffect(() => {
     const controller = new AbortController()
@@ -44,8 +48,10 @@ export default function InspectionListPage() {
 
     const fetchDateCounts = async () => {
       setInitialLoading(true)
-      setDateCache({})   // 기간 변경 시 캐시 초기화
+      setDateCache({})
       setOpenDates(new Set())
+      setOpenMonths(new Set())
+      setOpenYears(new Set())
       try {
         // RPC로 서버에서 GROUP BY 집계 — Supabase max-rows 제한 우회
         const { data, error } = await supabase
@@ -106,7 +112,7 @@ export default function InspectionListPage() {
 
       if (!error && data) {
         setDateCache((prev) => ({ ...prev, [date]: data }))
-        // 실제 로드된 개수로 배지 카운트 동기화 (Phase 1 집계 후 추가/삭제된 경우 보정)
+        // 실제 로드된 개수로 배지 카운트 동기화
         setDateCounts((prev) => ({ ...prev, [date]: data.length }))
         setOpenDates((prev) => new Set([...prev, date]))
       }
@@ -115,6 +121,24 @@ export default function InspectionListPage() {
     } finally {
       setLoadingDate(null)
     }
+  }
+
+  // ── 월 아코디언 토글 ──────────────────────────
+  const handleToggleMonth = (month) => {
+    setOpenMonths((prev) => {
+      const next = new Set(prev)
+      next.has(month) ? next.delete(month) : next.add(month)
+      return next
+    })
+  }
+
+  // ── 연도 아코디언 토글 ─────────────────────────
+  const handleToggleYear = (year) => {
+    setOpenYears((prev) => {
+      const next = new Set(prev)
+      next.has(year) ? next.delete(year) : next.add(year)
+      return next
+    })
   }
 
   // ── 검색 모드: debounce 300ms 후 서버 전체 쿼리 + 클라이언트 필터 ──
@@ -180,28 +204,68 @@ export default function InspectionListPage() {
     return [...list].sort((a, b) => a.room_no.localeCompare(b.room_no, 'ko'))
   }
 
-  // ── 표시할 날짜 목록 / 레코드 / 건수 ─────────
-  const { groupDates, getRecords, getCounts } = useMemo(() => {
+  // ── 계층형 그룹핑 (비검색 모드) + 검색 그룹핑 ──
+  const { currentMonthDates, prevMonthGroups, prevYearGroups, searchGrouped } = useMemo(() => {
+    const thisMonth = dayjs().format('YYYY-MM')
+    const thisYear  = dayjs().format('YYYY')
+
     if (isSearchMode) {
-      // 검색 모드 — searchRecords 기반 그룹핑
+      // 검색 모드 — searchRecords 기반 날짜 그룹핑
       const grouped = searchRecords.reduce((acc, r) => {
         acc[r.work_date] = acc[r.work_date] || []
         acc[r.work_date].push(r)
         return acc
       }, {})
-      return {
-        groupDates: Object.keys(grouped).sort((a, b) => b.localeCompare(a)),
-        getRecords: (date) => grouped[date] || [],
-        getCounts:  (date) => (grouped[date] || []).length,
-      }
+      const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+      return { currentMonthDates: [], prevMonthGroups: [], prevYearGroups: [], searchGrouped: { grouped, dates } }
     }
-    // 기본 모드 — dateCounts + dateCache 기반
-    return {
-      groupDates: Object.keys(dateCounts).sort((a, b) => b.localeCompare(a)),
-      getRecords: (date) => dateCache[date] || [],
-      getCounts:  (date) => dateCounts[date] || 0,
-    }
-  }, [isSearchMode, searchRecords, dateCounts, dateCache])
+
+    const allDates = Object.keys(dateCounts).sort((a, b) => b.localeCompare(a))
+
+    // 현재 달 — 날짜 바로 노출
+    const currentMonthDates = allDates.filter(d => d.startsWith(thisMonth))
+
+    // 이전 달 (현재 연도) — 월 아코디언
+    const prevMonthDatesThisYear = allDates.filter(d => d.startsWith(thisYear) && !d.startsWith(thisMonth))
+    const monthMap = {}
+    prevMonthDatesThisYear.forEach(d => {
+      const m = d.substring(0, 7)
+      if (!monthMap[m]) monthMap[m] = []
+      monthMap[m].push(d)
+    })
+    const prevMonthGroups = Object.keys(monthMap)
+      .sort((a, b) => b.localeCompare(a))
+      .map(m => ({
+        month: m,
+        dates: monthMap[m].sort((a, b) => b.localeCompare(a)),
+        totalCount: monthMap[m].reduce((sum, d) => sum + (dateCounts[d] || 0), 0),
+      }))
+
+    // 이전 연도 — 연도 아코디언 (연도 > 월 > 날짜)
+    const prevYearDates = allDates.filter(d => d.substring(0, 4) !== thisYear)
+    const yearMap = {}
+    prevYearDates.forEach(d => {
+      const y = d.substring(0, 4)
+      const m = d.substring(0, 7)
+      if (!yearMap[y]) yearMap[y] = {}
+      if (!yearMap[y][m]) yearMap[y][m] = []
+      yearMap[y][m].push(d)
+    })
+    const prevYearGroups = Object.keys(yearMap)
+      .sort((a, b) => b.localeCompare(a))
+      .map(y => {
+        const months = Object.keys(yearMap[y])
+          .sort((a, b) => b.localeCompare(a))
+          .map(m => ({
+            month: m,
+            dates: yearMap[y][m].sort((a, b) => b.localeCompare(a)),
+            totalCount: yearMap[y][m].reduce((sum, d) => sum + (dateCounts[d] || 0), 0),
+          }))
+        return { year: y, months, totalCount: months.reduce((sum, mg) => sum + mg.totalCount, 0) }
+      })
+
+    return { currentMonthDates, prevMonthGroups, prevYearGroups, searchGrouped: { grouped: {}, dates: [] } }
+  }, [isSearchMode, searchRecords, dateCounts])
 
   // ── 빠른 완료 처리 ───────────────────────────
   const handleQuickComplete = async (e, record) => {
@@ -233,9 +297,97 @@ export default function InspectionListPage() {
     }
   }
 
+  // ── 날짜 섹션 렌더 헬퍼 (3단계에서 공통 재사용) ──
+  const renderDateSection = (date) => {
+    const isOpen        = openDates.has(date)
+    const isToday       = date === todayDate
+    const isDateLoading = loadingDate === date
+    const records       = isSearchMode ? (searchGrouped.grouped[date] || []) : (dateCache[date] || [])
+    const count         = isSearchMode ? (searchGrouped.grouped[date] || []).length : (dateCounts[date] || 0)
+
+    return (
+      <section key={date} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
+        {/* 날짜 헤더 — 아코디언 토글 */}
+        <button
+          onClick={() => handleToggleDate(date)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-semibold ${isToday ? 'text-amber-400' : 'text-white/70'}`}>
+              {dayjs(date).format('YYYY-MM-DD (ddd)')}
+              {isToday && <span className="ml-1.5 text-xs">오늘</span>}
+            </span>
+            <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
+              {count}건
+            </span>
+          </div>
+          {isDateLoading
+            ? <Loader2 size={15} className="text-white/30 animate-spin shrink-0" />
+            : isOpen
+              ? <ChevronUp   size={15} className="text-white/30 shrink-0" />
+              : <ChevronDown size={15} className="text-white/30 shrink-0" />
+          }
+        </button>
+
+        {/* 카드 목록 — 열려있고 데이터 있을 때만 렌더 */}
+        {isOpen && records.length > 0 && (
+          <div className="px-3 pb-3 space-y-3 border-t border-white/8">
+            {sortRecords(records).map((record) => {
+              const showComplete = ['환기중', '진행중', '시설'].includes(record.status)
+              const isProcessing = processingId === record.id
+              return (
+                <div key={record.id}
+                  className="w-full flex items-center gap-2 px-3 py-3.5 rounded-2xl bg-slate-950
+                    border border-white/5 mt-2 shadow-sm transition-all hover:bg-slate-800">
+                  {/* 카드 본문 — 클릭 시 상세 이동 */}
+                  <button
+                    onClick={() => navigate(`/inspection/${record.id}`)}
+                    className="flex-1 text-left min-w-0 active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-bold text-white">{record.room_no}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getBadgeClass(statuses, record.status)}`}>
+                        {record.status}
+                      </span>
+                      <span className="ml-auto text-xs text-white/40">{record.users?.name}</span>
+                    </div>
+                    {record.note && (
+                      <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
+                    )}
+                  </button>
+
+                  {/* 빠른 완료 버튼 */}
+                  {showComplete && (
+                    <button
+                      onClick={(e) => handleQuickComplete(e, record)}
+                      disabled={isProcessing}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                        bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
+                        transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      {isProcessing
+                        ? <Loader2 size={12} className="animate-spin" />
+                        : <CheckCircle size={12} />
+                      }
+                      완료
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    )
+  }
+
   // ── 렌더 상태 ─────────────────────────────────
   const isLoading = isSearchMode ? searchLoading : initialLoading
-  const isEmpty   = !isLoading && groupDates.length === 0
+  const isEmpty   = !isLoading && (
+    isSearchMode
+      ? searchRecords.length === 0
+      : Object.keys(dateCounts).length === 0
+  )
 
   return (
     <div>
@@ -259,7 +411,6 @@ export default function InspectionListPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 bg-transparent text-white text-sm placeholder:text-white/30 outline-none"
           />
-          {/* 검색어 지우기 버튼 */}
           {search && (
             <button onClick={() => setSearch('')} className="text-white/30 hover:text-white/60 transition-colors">
               <X size={14} />
@@ -292,9 +443,9 @@ export default function InspectionListPage() {
             className="flex-1 px-3 py-2 bg-slate-900 rounded-xl border border-white/5
               text-white text-sm outline-none focus:border-amber-400/50" />
           <button
-            onClick={() => { setDateFrom(dayjs().subtract(30, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
+            onClick={() => { setDateFrom('2026-01-01'); setDateTo(dayjs().format('YYYY-MM-DD')) }}
             className="shrink-0 px-2.5 py-2 bg-slate-900 rounded-xl border border-white/5 text-xs text-white/50 hover:bg-slate-800">
-            30일
+            전체
           </button>
           <button
             onClick={() => { setDateFrom(dayjs().subtract(90, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
@@ -315,81 +466,98 @@ export default function InspectionListPage() {
             {isSearchMode ? '검색 결과 없음' : '기록이 없습니다'}
           </p>
         </div>
-      ) : (
+      ) : isSearchMode ? (
+        // 검색 모드: 날짜 플랫 목록
         <div className="px-4 pb-6 space-y-2">
-          {groupDates.map((date) => {
-            const isOpen       = openDates.has(date)
-            const isToday      = date === todayDate
-            const isDateLoading = loadingDate === date
-            const records      = getRecords(date)
-            const count        = getCounts(date)
+          {searchGrouped.dates.map((date) => renderDateSection(date))}
+        </div>
+      ) : (
+        // 기본 모드: 3단계 계층형 아코디언
+        <div className="px-4 pb-6 space-y-2">
 
+          {/* 1단계: 현재 달 — 날짜 바로 노출 */}
+          {currentMonthDates.map((date) => renderDateSection(date))}
+
+          {/* 2단계: 이전 달 (현재 연도) — 월 아코디언 */}
+          {prevMonthGroups.map(({ month, dates, totalCount }) => {
+            const isMonthOpen = openMonths.has(month)
+            const label = dayjs(month + '-01').format('YYYY년 M월')
             return (
-              <section key={date} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
-                {/* 날짜 헤더 — 아코디언 토글 */}
+              <section key={month} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
                 <button
-                  onClick={() => handleToggleDate(date)}
+                  onClick={() => handleToggleMonth(month)}
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-semibold ${isToday ? 'text-amber-400' : 'text-white/70'}`}>
-                      {dayjs(date).format('YYYY-MM-DD (ddd)')}
-                      {isToday && <span className="ml-1.5 text-xs">오늘</span>}
-                    </span>
+                    <span className="text-sm font-semibold text-white/60">{label}</span>
                     <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
-                      {count}건
+                      {totalCount.toLocaleString()}건
                     </span>
                   </div>
-                  {isDateLoading
-                    ? <Loader2 size={15} className="text-white/30 animate-spin shrink-0" />
-                    : isOpen
-                      ? <ChevronUp   size={15} className="text-white/30 shrink-0" />
-                      : <ChevronDown size={15} className="text-white/30 shrink-0" />
+                  {isMonthOpen
+                    ? <ChevronUp    size={15} className="text-white/30 shrink-0" />
+                    : <ChevronRight size={15} className="text-white/30 shrink-0" />
                   }
                 </button>
+                {isMonthOpen && (
+                  <div className="px-3 pb-3 space-y-2 border-t border-white/8">
+                    {dates.map((date) => (
+                      <div key={date} className="mt-2">{renderDateSection(date)}</div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )
+          })}
 
-                {/* 카드 목록 — 열려있고 데이터 있을 때만 렌더 */}
-                {isOpen && records.length > 0 && (
-                  <div className="px-3 pb-3 space-y-3 border-t border-white/8">
-                    {sortRecords(records).map((record) => {
-                      const showComplete = ['환기중', '진행중', '시설'].includes(record.status)
-                      const isProcessing = processingId === record.id
+          {/* 3단계: 이전 연도 — 연도 아코디언 > 월 아코디언 > 날짜 */}
+          {prevYearGroups.map(({ year, months, totalCount }) => {
+            const isYearOpen = openYears.has(year)
+            return (
+              <section key={year} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
+                <button
+                  onClick={() => handleToggleYear(year)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-white/60">{year}년</span>
+                    <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
+                      {totalCount.toLocaleString()}건
+                    </span>
+                  </div>
+                  {isYearOpen
+                    ? <ChevronUp    size={15} className="text-white/30 shrink-0" />
+                    : <ChevronRight size={15} className="text-white/30 shrink-0" />
+                  }
+                </button>
+                {isYearOpen && (
+                  <div className="px-3 pb-3 space-y-2 border-t border-white/8">
+                    {months.map(({ month, dates, totalCount: monthCount }) => {
+                      const isMonthOpen = openMonths.has(month)
+                      const label = dayjs(month + '-01').format('M월')
                       return (
-                        <div key={record.id}
-                          className="w-full flex items-center gap-2 px-3 py-3.5 rounded-2xl bg-slate-950
-                            border border-white/5 mt-2 shadow-sm transition-all hover:bg-slate-800">
-                          {/* 카드 본문 — 클릭 시 상세 이동 */}
+                        <div key={month} className="mt-2 bg-slate-950 border border-white/5 rounded-xl overflow-hidden">
                           <button
-                            onClick={() => navigate(`/inspection/${record.id}`)}
-                            className="flex-1 text-left min-w-0 active:scale-[0.99]"
+                            onClick={() => handleToggleMonth(month)}
+                            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/5 transition-colors"
                           >
                             <div className="flex items-center gap-2">
-                              <span className="text-base font-bold text-white">{record.room_no}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getBadgeClass(statuses, record.status)}`}>
-                                {record.status}
+                              <span className="text-sm font-medium text-white/50">{label}</span>
+                              <span className="text-xs text-white/30 bg-white/10 px-2 py-0.5 rounded-full">
+                                {monthCount.toLocaleString()}건
                               </span>
-                              <span className="ml-auto text-xs text-white/40">{record.users?.name}</span>
                             </div>
-                            {record.note && (
-                              <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
-                            )}
+                            {isMonthOpen
+                              ? <ChevronUp    size={14} className="text-white/20 shrink-0" />
+                              : <ChevronRight size={14} className="text-white/20 shrink-0" />
+                            }
                           </button>
-
-                          {/* 빠른 완료 버튼 */}
-                          {showComplete && (
-                            <button
-                              onClick={(e) => handleQuickComplete(e, record)}
-                              disabled={isProcessing}
-                              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
-                                bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/35
-                                transition-all active:scale-95 disabled:opacity-40"
-                            >
-                              {isProcessing
-                                ? <Loader2 size={12} className="animate-spin" />
-                                : <CheckCircle size={12} />
-                              }
-                              완료
-                            </button>
+                          {isMonthOpen && (
+                            <div className="px-2 pb-2 space-y-2 border-t border-white/5">
+                              {dates.map((date) => (
+                                <div key={date} className="mt-2">{renderDateSection(date)}</div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       )
@@ -399,6 +567,7 @@ export default function InspectionListPage() {
               </section>
             )
           })}
+
         </div>
       )}
     </div>
