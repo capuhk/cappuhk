@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronDown, ChevronUp, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer, MessageSquare, Send, X } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, ChevronRight, CalendarDays, CheckCircle, Loader2, FileSpreadsheet, Printer, MessageSquare, Send, X } from 'lucide-react'
 import dayjs from 'dayjs'
 import { supabase } from '../../lib/supabase'
 import useRefreshStore from '../../store/useRefreshStore'
@@ -53,13 +53,17 @@ export default function FacilityOrderListPage() {
   const [dateCache,    setDateCache]    = useState({})
   const [loadingDate,  setLoadingDate]  = useState(null)
 
+  // ── 아코디언 열림 상태 (날짜 / 월 / 연도) ──────────
+  const [openDates,  setOpenDates]  = useState(new Set())
+  const [openMonths, setOpenMonths] = useState(new Set())
+  const [openYears,  setOpenYears]  = useState(new Set())
+
   const [search,        setSearch]        = useState('')
   const [searchRecords, setSearchRecords] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
   const searchTimerRef = useRef(null)
 
   const [statusFilter, setStatusFilter] = useState('all')
-  const [openDates,    setOpenDates]    = useState(new Set())
   const [exporting,    setExporting]    = useState(false)
 
   const isSearchMode = search.trim().length > 0
@@ -73,6 +77,8 @@ export default function FacilityOrderListPage() {
       setInitialLoading(true)
       setDateCache({})
       setOpenDates(new Set())
+      setOpenMonths(new Set())
+      setOpenYears(new Set())
       try {
         const { data, error } = await supabase
           .rpc('get_facility_order_date_counts', { p_from: dateFrom, p_to: dateTo })
@@ -137,6 +143,24 @@ export default function FacilityOrderListPage() {
     } finally {
       setLoadingDate(null)
     }
+  }
+
+  // ── 월 아코디언 토글 ──────────────────────────
+  const handleToggleMonth = (month) => {
+    setOpenMonths((prev) => {
+      const next = new Set(prev)
+      next.has(month) ? next.delete(month) : next.add(month)
+      return next
+    })
+  }
+
+  // ── 연도 아코디언 토글 ─────────────────────────
+  const handleToggleYear = (year) => {
+    setOpenYears((prev) => {
+      const next = new Set(prev)
+      next.has(year) ? next.delete(year) : next.add(year)
+      return next
+    })
   }
 
   // ── 검색 모드: debounce 300ms 후 전체 쿼리 ──
@@ -229,27 +253,82 @@ export default function FacilityOrderListPage() {
     return statusCounts[val] || 0
   }
 
-  // ── 검색 모드 그룹 ────────────────────────────
-  const searchGrouped = useMemo(() => {
-    let list = searchRecords
-    if (statusFilter === 'incomplete') list = list.filter((r) => r.status !== '완료' && r.status !== '이관')
-    else if (statusFilter !== 'all')   list = list.filter((r) => r.status === statusFilter)
-    return list.reduce((acc, r) => {
-      acc[r.work_date] = acc[r.work_date] || []
-      acc[r.work_date].push(r)
-      return acc
-    }, {})
-  }, [searchRecords, statusFilter])
+  // ── 계층형 그룹핑 (비검색 모드) + 검색 그룹핑 ──
+  const { currentMonthDates, prevMonthGroups, prevYearGroups, searchGroupedData } = useMemo(() => {
+    const thisMonth = dayjs().format('YYYY-MM')
+    const thisYear  = dayjs().format('YYYY')
 
-  // ── 표시할 날짜 목록 ──────────────────────────
-  const groupDates = useMemo(() => {
-    if (isSearchMode) return Object.keys(searchGrouped).sort((a, b) => b.localeCompare(a))
-    return Object.keys(dateCounts).sort((a, b) => b.localeCompare(a))
-  }, [isSearchMode, searchGrouped, dateCounts])
+    if (isSearchMode) {
+      // 검색 모드 — statusFilter 적용 후 날짜 그룹핑
+      let list = searchRecords
+      if (statusFilter === 'incomplete') list = list.filter((r) => r.status !== '완료' && r.status !== '이관')
+      else if (statusFilter !== 'all')   list = list.filter((r) => r.status === statusFilter)
+      const grouped = list.reduce((acc, r) => {
+        acc[r.work_date] = acc[r.work_date] || []
+        acc[r.work_date].push(r)
+        return acc
+      }, {})
+      const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+      return { currentMonthDates: [], prevMonthGroups: [], prevYearGroups: [], searchGroupedData: { grouped, dates } }
+    }
+
+    const allDates = Object.keys(dateCounts).sort((a, b) => b.localeCompare(a))
+
+    // 현재 달 — 날짜 바로 노출
+    const currentMonthDates = allDates.filter(d => d.startsWith(thisMonth))
+
+    // 이전 달 (현재 연도) — 월 아코디언
+    const prevMonthDatesThisYear = allDates.filter(d => d.startsWith(thisYear) && !d.startsWith(thisMonth))
+    const monthMap = {}
+    prevMonthDatesThisYear.forEach(d => {
+      const m = d.substring(0, 7)
+      if (!monthMap[m]) monthMap[m] = []
+      monthMap[m].push(d)
+    })
+    const prevMonthGroups = Object.keys(monthMap)
+      .sort((a, b) => b.localeCompare(a))
+      .map(m => ({
+        month: m,
+        dates: monthMap[m].sort((a, b) => b.localeCompare(a)),
+        totalCount:  monthMap[m].reduce((s, d) => s + (dateCounts[d]  || 0), 0),
+        urgentTotal: monthMap[m].reduce((s, d) => s + (urgentCounts[d] || 0), 0),
+      }))
+
+    // 이전 연도 — 연도 아코디언 (연도 > 월 > 날짜)
+    const prevYearDates = allDates.filter(d => d.substring(0, 4) !== thisYear)
+    const yearMap = {}
+    prevYearDates.forEach(d => {
+      const y = d.substring(0, 4)
+      const m = d.substring(0, 7)
+      if (!yearMap[y]) yearMap[y] = {}
+      if (!yearMap[y][m]) yearMap[y][m] = []
+      yearMap[y][m].push(d)
+    })
+    const prevYearGroups = Object.keys(yearMap)
+      .sort((a, b) => b.localeCompare(a))
+      .map(y => {
+        const months = Object.keys(yearMap[y])
+          .sort((a, b) => b.localeCompare(a))
+          .map(m => ({
+            month: m,
+            dates: yearMap[y][m].sort((a, b) => b.localeCompare(a)),
+            totalCount:  yearMap[y][m].reduce((s, d) => s + (dateCounts[d]  || 0), 0),
+            urgentTotal: yearMap[y][m].reduce((s, d) => s + (urgentCounts[d] || 0), 0),
+          }))
+        return {
+          year: y,
+          months,
+          totalCount:  months.reduce((s, mg) => s + mg.totalCount,  0),
+          urgentTotal: months.reduce((s, mg) => s + mg.urgentTotal, 0),
+        }
+      })
+
+    return { currentMonthDates, prevMonthGroups, prevYearGroups, searchGroupedData: { grouped: {}, dates: [] } }
+  }, [isSearchMode, searchRecords, statusFilter, dateCounts, urgentCounts])
 
   // ── 날짜의 표시 레코드 (필터 적용 + 긴급 먼저) ──
   const getRecords = (date) => {
-    let list = isSearchMode ? (searchGrouped[date] || []) : (dateCache[date] || [])
+    let list = isSearchMode ? (searchGroupedData.grouped[date] || []) : (dateCache[date] || [])
     if (!isSearchMode) {
       if (statusFilter === 'incomplete') list = list.filter((r) => r.status !== '완료' && r.status !== '이관')
       else if (statusFilter !== 'all')   list = list.filter((r) => r.status === statusFilter)
@@ -259,12 +338,12 @@ export default function FacilityOrderListPage() {
 
   // ── 날짜 헤더의 건수 배지 ─────────────────────
   const getCount = (date) => isSearchMode
-    ? (searchGrouped[date] || []).length
+    ? (searchGroupedData.grouped[date] || []).length
     : (dateCounts[date] || 0)
 
   // ── 긴급 건수 ────────────────────────────────
   const getUrgentCount = (date) => {
-    if (isSearchMode) return (searchGrouped[date] || []).filter((r) => r.is_urgent).length
+    if (isSearchMode) return (searchGroupedData.grouped[date] || []).filter((r) => r.is_urgent).length
     return urgentCounts[date] || 0
   }
 
@@ -372,9 +451,153 @@ export default function FacilityOrderListPage() {
     setSendingRemark(null)
   }
 
+  // ── 날짜 섹션 렌더 헬퍼 (3단계에서 공통 재사용) ──
+  const renderDateSection = (date) => {
+    const isOpen      = openDates.has(date)
+    const count       = getCount(date)
+    const urgentCount = getUrgentCount(date)
+    const records     = getRecords(date)
+
+    return (
+      <section key={date} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
+        {/* 날짜 헤더 — 아코디언 토글 */}
+        <button
+          onClick={() => handleToggleDate(date)}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-white/70">
+              {dayjs(date).format('YYYY-MM-DD (ddd)')}
+            </span>
+            <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
+              {count}건
+            </span>
+            {urgentCount > 0 && (
+              <span className="text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
+                🚨 {urgentCount}건
+              </span>
+            )}
+          </div>
+          {loadingDate === date
+            ? <Loader2 size={15} className="text-white/30 animate-spin shrink-0" />
+            : isOpen
+              ? <ChevronUp   size={15} className="text-white/30 shrink-0" />
+              : <ChevronDown size={15} className="text-white/30 shrink-0" />
+          }
+        </button>
+
+        {/* 카드 목록 */}
+        {isOpen && (
+          <div className="px-3 pb-3 space-y-3 border-t border-white/8">
+            {records.map((record) => {
+              const isProcessing = processingId?.startsWith(record.id)
+              const showButtons  = record.status !== '완료' && record.status !== '이관'
+              const canComplete  = isManager || !record.accepted_by || user?.id === record.accepted_by
+              const latestRemark = (record.facility_order_remarks || [])
+                .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+              const isRemarkOpen = remarkOpenId === record.id
+              return (
+                <div
+                  key={record.id}
+                  className={`rounded-2xl border mt-2 overflow-hidden transition-all ${
+                    record.is_urgent
+                      ? 'bg-rose-500/5 border-rose-500/20 shadow-sm'
+                      : 'bg-slate-950 border-white/5 shadow-sm'
+                  }`}
+                >
+                  <button
+                    onClick={() => navigate(`/facility-order/${record.id}`)}
+                    className="w-full text-left px-3 pt-3.5 pb-2 active:scale-[0.99]"
+                  >
+                    <div className="flex items-center gap-2">
+                      {record.is_urgent && (
+                        <span className="text-xs text-red-400 shrink-0">🚨</span>
+                      )}
+                      <span className="text-base font-bold text-white">
+                        {record.room_no || record.location_type || ''}
+                      </span>
+                      <span className="text-sm text-white/60 truncate">{record.facility_type_name}</span>
+                      <span className={`ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status] || 'bg-zinc-500/30 text-zinc-300'}`}>
+                        {record.status}
+                      </span>
+                    </div>
+                    {record.note && (
+                      <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
+                    )}
+                    {latestRemark && (
+                      <div className="mt-1.5 flex items-start gap-1">
+                        <MessageSquare size={11} className="text-amber-400/60 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-400/70 line-clamp-2">
+                          {latestRemark.author?.name}: {latestRemark.content}
+                        </p>
+                      </div>
+                    )}
+                    <p className="mt-1 text-xs text-white/30">{record.users?.name}</p>
+                  </button>
+
+                  <div className="flex border-t border-white/5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRemarkOpenId(isRemarkOpen ? null : record.id)
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors
+                        ${isRemarkOpen ? 'text-amber-400 bg-amber-400/10' : 'text-white/40 hover:text-white/70 hover:bg-white/5'}`}
+                    >
+                      <MessageSquare size={12} />
+                      리마크
+                    </button>
+
+                    {showButtons && (
+                      <>
+                        <div className="w-px bg-white/5" />
+                        {record.status === '접수대기' && (
+                          <button
+                            onClick={(e) => handleQuickStatus(e, record, '처리중')}
+                            disabled={isProcessing}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium
+                              text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
+                          >
+                            {processingId === `${record.id}-처리중`
+                              ? <Loader2 size={12} className="animate-spin" />
+                              : <CheckCircle size={12} />
+                            }
+                            접수
+                          </button>
+                        )}
+                        <div className="w-px bg-white/5" />
+                        <button
+                          onClick={(e) => canComplete ? handleQuickStatus(e, record, '완료') : e.stopPropagation()}
+                          disabled={isProcessing || !canComplete}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium
+                            transition-colors disabled:opacity-25
+                            enabled:text-emerald-400 enabled:hover:bg-emerald-500/10"
+                        >
+                          {processingId === `${record.id}-완료`
+                            ? <Loader2 size={12} className="animate-spin" />
+                            : <CheckCircle size={12} />
+                          }
+                          완료
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+    )
+  }
+
   // ── 렌더 상태 ─────────────────────────────────
   const isLoading = isSearchMode ? searchLoading : initialLoading
-  const isEmpty   = !isLoading && groupDates.length === 0
+  const isEmpty   = !isLoading && (
+    isSearchMode
+      ? searchGroupedData.dates.length === 0
+      : Object.keys(dateCounts).length === 0
+  )
 
   return (
     <div>
@@ -448,9 +671,9 @@ export default function FacilityOrderListPage() {
             className="flex-1 px-3 py-2 bg-slate-900 rounded-xl border border-white/5
               text-white text-sm outline-none focus:border-amber-400/50" />
           <button
-            onClick={() => { setDateFrom(dayjs().subtract(30, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
+            onClick={() => { setDateFrom('2026-01-01'); setDateTo(dayjs().format('YYYY-MM-DD')) }}
             className="shrink-0 px-2.5 py-2 bg-slate-900 rounded-xl border border-white/5 text-xs text-white/50 hover:bg-slate-800">
-            30일
+            전체
           </button>
           <button
             onClick={() => { setDateFrom(dayjs().subtract(90, 'day').format('YYYY-MM-DD')); setDateTo(dayjs().format('YYYY-MM-DD')) }}
@@ -487,138 +710,114 @@ export default function FacilityOrderListPage() {
         <div className="flex flex-col items-center justify-center py-20">
           <p className="text-sm text-white/30">오더가 없습니다</p>
         </div>
-      ) : (
+      ) : isSearchMode ? (
+        // 검색 모드: 날짜 플랫 목록
         <div className="px-4 pb-6 space-y-2">
-          {groupDates.map((date) => {
-            const isOpen      = openDates.has(date)
-            const count       = getCount(date)
-            const urgentCount = getUrgentCount(date)
-            const records     = getRecords(date)
+          {searchGroupedData.dates.map((date) => renderDateSection(date))}
+        </div>
+      ) : (
+        // 기본 모드: 3단계 계층형 아코디언
+        <div className="px-4 pb-6 space-y-2">
 
+          {/* 1단계: 현재 달 — 날짜 바로 노출 */}
+          {currentMonthDates.map((date) => renderDateSection(date))}
+
+          {/* 2단계: 이전 달 (현재 연도) — 월 아코디언 */}
+          {prevMonthGroups.map(({ month, dates, totalCount, urgentTotal }) => {
+            const isMonthOpen = openMonths.has(month)
+            const label = dayjs(month + '-01').format('YYYY년 M월')
             return (
-              <section key={date} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
-                {/* 날짜 헤더 — 아코디언 토글 */}
+              <section key={month} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
                 <button
-                  onClick={() => handleToggleDate(date)}
+                  onClick={() => handleToggleMonth(month)}
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white/70">
-                      {dayjs(date).format('YYYY-MM-DD (ddd)')}
-                    </span>
+                    <span className="text-sm font-semibold text-white/60">{label}</span>
                     <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
-                      {count}건
+                      {totalCount.toLocaleString()}건
                     </span>
-                    {urgentCount > 0 && (
+                    {urgentTotal > 0 && (
                       <span className="text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
-                        🚨 {urgentCount}건
+                        🚨 {urgentTotal}건
                       </span>
                     )}
                   </div>
-                  {loadingDate === date
-                    ? <Loader2 size={15} className="text-white/30 animate-spin shrink-0" />
-                    : isOpen
-                      ? <ChevronUp size={15} className="text-white/30 shrink-0" />
-                      : <ChevronDown size={15} className="text-white/30 shrink-0" />
+                  {isMonthOpen
+                    ? <ChevronUp    size={15} className="text-white/30 shrink-0" />
+                    : <ChevronRight size={15} className="text-white/30 shrink-0" />
                   }
                 </button>
+                {isMonthOpen && (
+                  <div className="px-3 pb-3 space-y-2 border-t border-white/8">
+                    {dates.map((date) => (
+                      <div key={date} className="mt-2">{renderDateSection(date)}</div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )
+          })}
 
-                {/* 카드 목록 */}
-                {isOpen && (
-                  <div className="px-3 pb-3 space-y-3 border-t border-white/8">
-                    {records.map((record) => {
-                      const isProcessing = processingId?.startsWith(record.id)
-                      const showButtons  = record.status !== '완료' && record.status !== '이관'
-                      const canComplete  = isManager || !record.accepted_by || user?.id === record.accepted_by
-                      const latestRemark = (record.facility_order_remarks || [])
-                        .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-                      const isRemarkOpen = remarkOpenId === record.id
+          {/* 3단계: 이전 연도 — 연도 아코디언 > 월 아코디언 > 날짜 */}
+          {prevYearGroups.map(({ year, months, totalCount, urgentTotal }) => {
+            const isYearOpen = openYears.has(year)
+            return (
+              <section key={year} className="bg-slate-900 border border-white/5 rounded-2xl overflow-hidden shadow-sm">
+                <button
+                  onClick={() => handleToggleYear(year)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-white/60">{year}년</span>
+                    <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
+                      {totalCount.toLocaleString()}건
+                    </span>
+                    {urgentTotal > 0 && (
+                      <span className="text-xs text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
+                        🚨 {urgentTotal}건
+                      </span>
+                    )}
+                  </div>
+                  {isYearOpen
+                    ? <ChevronUp    size={15} className="text-white/30 shrink-0" />
+                    : <ChevronRight size={15} className="text-white/30 shrink-0" />
+                  }
+                </button>
+                {isYearOpen && (
+                  <div className="px-3 pb-3 space-y-2 border-t border-white/8">
+                    {months.map(({ month, dates, totalCount: monthCount, urgentTotal: monthUrgent }) => {
+                      const isMonthOpen = openMonths.has(month)
+                      const label = dayjs(month + '-01').format('M월')
                       return (
-                        <div
-                          key={record.id}
-                          className={`rounded-2xl border mt-2 overflow-hidden transition-all ${
-                            record.is_urgent
-                              ? 'bg-rose-500/5 border-rose-500/20 shadow-sm'
-                              : 'bg-slate-950 border-white/5 shadow-sm'
-                          }`}
-                        >
+                        <div key={month} className="mt-2 bg-slate-950 border border-white/5 rounded-xl overflow-hidden">
                           <button
-                            onClick={() => navigate(`/facility-order/${record.id}`)}
-                            className="w-full text-left px-3 pt-3.5 pb-2 active:scale-[0.99]"
+                            onClick={() => handleToggleMonth(month)}
+                            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/5 transition-colors"
                           >
                             <div className="flex items-center gap-2">
-                              {record.is_urgent && (
-                                <span className="text-xs text-red-400 shrink-0">🚨</span>
+                              <span className="text-sm font-medium text-white/50">{label}</span>
+                              <span className="text-xs text-white/30 bg-white/10 px-2 py-0.5 rounded-full">
+                                {monthCount.toLocaleString()}건
+                              </span>
+                              {monthUrgent > 0 && (
+                                <span className="text-xs text-red-400/70 bg-red-500/10 px-2 py-0.5 rounded-full">
+                                  🚨 {monthUrgent}건
+                                </span>
                               )}
-                              <span className="text-base font-bold text-white">
-                                {record.room_no || record.location_type || ''}
-                              </span>
-                              <span className="text-sm text-white/60 truncate">{record.facility_type_name}</span>
-                              <span className={`ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[record.status] || 'bg-zinc-500/30 text-zinc-300'}`}>
-                                {record.status}
-                              </span>
                             </div>
-                            {record.note && (
-                              <p className="mt-1 text-sm text-white/50 truncate">{record.note}</p>
-                            )}
-                            {latestRemark && (
-                              <div className="mt-1.5 flex items-start gap-1">
-                                <MessageSquare size={11} className="text-amber-400/60 shrink-0 mt-0.5" />
-                                <p className="text-xs text-amber-400/70 line-clamp-2">
-                                  {latestRemark.author?.name}: {latestRemark.content}
-                                </p>
-                              </div>
-                            )}
-                            <p className="mt-1 text-xs text-white/30">{record.users?.name}</p>
+                            {isMonthOpen
+                              ? <ChevronUp    size={14} className="text-white/20 shrink-0" />
+                              : <ChevronRight size={14} className="text-white/20 shrink-0" />
+                            }
                           </button>
-
-                          <div className="flex border-t border-white/5">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setRemarkOpenId(isRemarkOpen ? null : record.id)
-                              }}
-                              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors
-                                ${isRemarkOpen ? 'text-amber-400 bg-amber-400/10' : 'text-white/40 hover:text-white/70 hover:bg-white/5'}`}
-                            >
-                              <MessageSquare size={12} />
-                              리마크
-                            </button>
-
-                            {showButtons && (
-                              <>
-                                <div className="w-px bg-white/5" />
-                                {record.status === '접수대기' && (
-                                  <button
-                                    onClick={(e) => handleQuickStatus(e, record, '처리중')}
-                                    disabled={isProcessing}
-                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium
-                                      text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
-                                  >
-                                    {processingId === `${record.id}-처리중`
-                                      ? <Loader2 size={12} className="animate-spin" />
-                                      : <CheckCircle size={12} />
-                                    }
-                                    접수
-                                  </button>
-                                )}
-                                <div className="w-px bg-white/5" />
-                                <button
-                                  onClick={(e) => canComplete ? handleQuickStatus(e, record, '완료') : e.stopPropagation()}
-                                  disabled={isProcessing || !canComplete}
-                                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium
-                                    transition-colors disabled:opacity-25
-                                    enabled:text-emerald-400 enabled:hover:bg-emerald-500/10"
-                                >
-                                  {processingId === `${record.id}-완료`
-                                    ? <Loader2 size={12} className="animate-spin" />
-                                    : <CheckCircle size={12} />
-                                  }
-                                  완료
-                                </button>
-                              </>
-                            )}
-                          </div>
+                          {isMonthOpen && (
+                            <div className="px-2 pb-2 space-y-2 border-t border-white/5">
+                              {dates.map((date) => (
+                                <div key={date} className="mt-2">{renderDateSection(date)}</div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -627,6 +826,7 @@ export default function FacilityOrderListPage() {
               </section>
             )
           })}
+
         </div>
       )}
 

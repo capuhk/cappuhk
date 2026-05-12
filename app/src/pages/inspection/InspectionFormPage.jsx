@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -10,6 +10,9 @@ import { networkSave } from '../../utils/networkSave'
 import { getMasterData, getCachedDataSync, CACHE_KEYS, getPolicy } from '../../utils/masterCache'
 import { getBtnClass } from '../../utils/statusColors'
 import { sendPush } from '../../utils/sendPush'
+
+// sessionStorage 임시저장 키 (신규 등록 폼 전용)
+const DRAFT_KEY = 'inspection_form_draft'
 
 export default function InspectionFormPage() {
   const { id }   = useParams()       // 수정 모드: id 존재
@@ -29,13 +32,23 @@ export default function InspectionFormPage() {
     getMasterData(CACHE_KEYS.appPolicies).then(setPolicies)
   }, [])
 
-  // ── 폼 필드 ───────────────────────────────────
-  const [roomNo, setRoomNo]                     = useState(null)
-  const [note, setNote]                         = useState('')
-  const [status, setStatus]                     = useState('')
-  const [imagePaths, setImagePaths]             = useState([])
+  // ── 신규 등록 폼 임시저장 복원 ───────────────────
+  // 수정 모드는 DB에서 로드하므로 임시저장 사용 안 함
+  const savedDraft = useMemo(() => {
+    if (isEdit) return null
+    try {
+      const s = sessionStorage.getItem(DRAFT_KEY)
+      return s ? JSON.parse(s) : null
+    } catch { return null }
+  }, [isEdit])
+
+  // ── 폼 필드 (신규 등록 시 임시저장 복원) ─────────
+  const [roomNo, setRoomNo]                     = useState(savedDraft?.roomNo ?? null)
+  const [note, setNote]                         = useState(savedDraft?.note ?? '')
+  const [status, setStatus]                     = useState(savedDraft?.status ?? '')
+  const [imagePaths, setImagePaths]             = useState(savedDraft?.imagePaths ?? [])
   // 시설 상태 선택 시 시설오더 발송 여부 (등록 폼만)
-  const [sendFacilityOrder, setSendFacilityOrder] = useState(false)
+  const [sendFacilityOrder, setSendFacilityOrder] = useState(savedDraft?.sendFacilityOrder ?? false)
 
   // ── 수정 모드 원본 데이터 ─────────────────────
   const [authorName, setAuthorName]   = useState('')
@@ -49,6 +62,15 @@ export default function InspectionFormPage() {
 
   // 자동진행: 객실 선택 후 이미지 영역으로 스크롤
   const imageRef = useRef(null)
+
+  // ── 신규 등록 폼 자동 임시저장 ──────────────────
+  // 페이지 이동 후 돌아와도 입력값 복원 가능
+  useEffect(() => {
+    if (isEdit) return
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ roomNo, note, status, imagePaths, sendFacilityOrder }))
+    } catch {}
+  }, [isEdit, roomNo, note, status, imagePaths, sendFacilityOrder])
 
   // ── 수정 모드: 기존 데이터 로드 ──────────────
   useEffect(() => {
@@ -93,10 +115,9 @@ export default function InspectionFormPage() {
     if (!isEdit && user) setAuthorName(user.name)
   }, [isEdit, user])
 
-  // statuses + 정책 로드 후 기본값 설정
+  // statuses + 정책 로드 후 기본값 설정 (임시저장된 status 없을 때만)
   useEffect(() => {
     if (!isEdit && statuses.length > 0 && !status) {
-      // 정책에서 초기값 읽기 (빈 문자열이면 선택 안 함)
       const defaultStatus = getPolicy(policies, 'inspection_default_status', statuses[0].name)
       setStatus(defaultStatus)
     }
@@ -243,6 +264,8 @@ export default function InspectionFormPage() {
           )
         }
 
+        // 등록 성공 — 임시저장 삭제 후 목록으로 이동
+        sessionStorage.removeItem(DRAFT_KEY)
         navigate('/inspection', { replace: true })
       }
       }) // networkSave 종료
