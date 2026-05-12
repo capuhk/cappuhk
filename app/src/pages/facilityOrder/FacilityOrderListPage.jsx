@@ -40,7 +40,7 @@ export default function FacilityOrderListPage() {
   const isManager = ['admin', 'manager', 'supervisor'].includes(user?.role)
   const { pullDistance, refreshing } = usePullToRefresh(useCallback(() => { triggerRefresh() }, [triggerRefresh]))
 
-  const [dateFrom, setDateFrom] = useState('2026-04-01')
+  const [dateFrom, setDateFrom] = useState('2026-01-01')
   const [dateTo,   setDateTo]   = useState(() => dayjs().format('YYYY-MM-DD'))
   const [dateOpen, setDateOpen] = useState(false)
 

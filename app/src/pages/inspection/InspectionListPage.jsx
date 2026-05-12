@@ -16,7 +16,7 @@ export default function InspectionListPage() {
   const [statuses, setStatuses] = useState(() => getCachedDataSync(CACHE_KEYS.inspectionStatuses) || [])
   const [policies, setPolicies] = useState(() => getCachedDataSync(CACHE_KEYS.appPolicies) || [])
 
-  const [dateFrom, setDateFrom] = useState('2026-04-01')
+  const [dateFrom, setDateFrom] = useState('2026-01-01')
   const [dateTo,   setDateTo]   = useState(() => dayjs().format('YYYY-MM-DD'))
   const [dateOpen, setDateOpen] = useState(false)
 
