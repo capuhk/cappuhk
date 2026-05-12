@@ -34,9 +34,10 @@ export default function InspectionListPage() {
   const [processingId, setProcessingId] = useState(null)
 
   // ── 검색 모드 ─────────────────────────────────
-  const [search,        setSearch]        = useState('')
-  const [searchRecords, setSearchRecords] = useState([])
-  const [searchLoading, setSearchLoading] = useState(false)
+  const [search,             setSearch]             = useState('')
+  const [searchRecords,      setSearchRecords]      = useState([])
+  const [searchLoading,      setSearchLoading]      = useState(false)
+  const [searchLimitReached, setSearchLimitReached] = useState(false)
   const searchTimerRef = useRef(null)
 
   const isSearchMode = search.trim().length > 0
@@ -146,6 +147,7 @@ export default function InspectionListPage() {
     const q = search.trim()
     if (!q) {
       setSearchRecords([])
+      setSearchLimitReached(false)
       return
     }
 
@@ -160,8 +162,11 @@ export default function InspectionListPage() {
           .lte('work_date', dateTo)
           .order('work_date', { ascending: false })
           .order('created_at', { ascending: false })
+          .limit(5000)
 
         if (!error && data) {
+          // 5000건 도달 시 기간 초과 경고 (실제 결과가 더 있을 수 있음)
+          setSearchLimitReached(data.length === 5000)
           // 작성자명 포함 클라이언트 필터
           const filtered = data.filter((r) =>
             r.room_no.includes(q) ||
@@ -412,7 +417,7 @@ export default function InspectionListPage() {
             className="flex-1 bg-transparent text-white text-sm placeholder:text-white/30 outline-none"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="text-white/30 hover:text-white/60 transition-colors">
+            <button onClick={() => { setSearch(''); setSearchLimitReached(false) }} className="text-white/30 hover:text-white/60 transition-colors">
               <X size={14} />
             </button>
           )}
@@ -429,6 +434,13 @@ export default function InspectionListPage() {
           <span className="hidden sm:inline">기간</span>
         </button>
       </div>
+
+      {/* 검색 범위 초과 경고 */}
+      {searchLimitReached && (
+        <div className="mx-4 mb-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+          <p className="text-xs text-amber-400">검색 범위가 너무 넓습니다. 기간을 좁혀서 다시 검색해주세요.</p>
+        </div>
+      )}
 
       {/* 날짜 범위 입력 패널 */}
       {dateOpen && (
