@@ -71,10 +71,14 @@ export default function NoticePopup() {
     if (!current || loading) return
     setLoading(true)
 
+    // popup_notice_X: 팝업 재표시 방지 / notice_X: 뱃지 카운트 해소 (키 통일)
     await supabase
       .from('notification_reads')
       .upsert(
-        { user_id: user.id, item_id: `popup_notice_${current.id}` },
+        [
+          { user_id: user.id, item_id: `popup_notice_${current.id}` },
+          { user_id: user.id, item_id: `notice_${current.id}` },
+        ],
         { onConflict: 'user_id,item_id' },
       )
 
